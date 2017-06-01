@@ -56,7 +56,6 @@ setup(
 
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
-        'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
     ],
 
@@ -65,8 +64,7 @@ setup(
 
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
-    #packages=find_packages(exclude=['contrib', 'docs', 'tests']),
-    packages=['client'],
+    packages=find_packages(exclude=['contrib', 'docs', 'tests']),
 
     # Alternatively, if you want to distribute just a my_module.py, uncomment
     # this:
@@ -76,7 +74,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=["Flask"],
+    install_requires=['keystoneauth1==2.20.0', 'Babel==2.3.4', 'python-novaclient==8.0.0', 'uuid==1.30', 'Flask' ],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
@@ -105,6 +103,7 @@ setup(
     entry_points={
         'console_scripts': [
             'ctclient=client.Client:main',
+            'ctcontrol=control.control:main',
         ],
     },
 )
