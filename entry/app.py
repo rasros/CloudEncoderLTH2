@@ -17,9 +17,20 @@ def index():
     resp.headers['Location'] = '/' + str(theID)
     return resp,201
 
+index = 0
+
 @app.route('/<uuid>/status')
 def status(uuid):
-    res = { 'status' : 'QUEUED' , 'progress' : 0 }
+    global index
+    if(index < 1):
+        res = { 'status' : 'QUEUED' , 'progress' : 0 }
+    elif(index < 5):
+        res = { 'status' : 'PROCESSING' , 'progress' : 50 }
+    else:
+        res = { 'status' : 'DONE' , 'progress' : 100 }
+
+    index = index + 1
+
     return jsonify(res)
 
 
@@ -29,6 +40,7 @@ def download(uuid):
     resp.headers['Content-disposition'] = 'attachment; filename=' + uuid + '.mp4'
     theFile = open(uuid + '.mp4','rb')
     resp.data = theFile.read()
+    index = 0
     return resp
 
 if __name__ == '__main__':
