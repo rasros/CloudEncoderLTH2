@@ -1,7 +1,10 @@
+#!/usr/bin/env python2
+
 from keystoneauth1.identity import v3
 from keystoneauth1 import session
 from novaclient.client import Client as NovaClient
 from glanceclient import Client as GlanceClient
+from swiftclient import Connection as SwiftConnection
 import novaclient.exceptions as NovaExceptions
 import datetime
 import argparse
@@ -23,8 +26,8 @@ class OpenStackVMOperations:
         self.openStackProjectDomainId=config.get('openstack','project_domain_id')
         self.openStackUserDomainName=config.get('openstack','user_domain_name')
 
-    def __init__(self):
-        self.readConf()
+    def __init__(self, verbose=False):
+        self.readConf(verbose)
         self.auth = v3.Password(
             username=self.openStackUsername,
             password=self.openStackPassword,
@@ -38,12 +41,28 @@ class OpenStackVMOperations:
         self.sess = session.Session(auth=self.auth)
         self.nova = NovaClient("2.1", session=self.sess)
         self.glance = GlanceClient("2", session=self.sess)
+
+
+    def swiftConn(self):
+        _os_options = {
+                'user_domain_name': self.openStackUserDomainName,
+                'project_domain_name': self.openStackProjectDomainName,
+                'project_name': self.projectName
+        }
+        return SwiftConnection(
+                authurl=self.openStackAuthUrl,
+                user=self.openStackUsername,
+                key=self.openStackPassword,
+                auth_version='3.0',
+                os_options=_os_options
+        )
+                
         
     def out(self, *arg):
         if self.verbose:
             print(arg)
        
-    def monitoringInfo( self,  start_date, end_date):
+    def monitoringInfo(self,  start_date, end_date):
         usage = self.nova.usage.get( self.projectName, start_date, end_date)
         self.out(usage)
     
@@ -81,6 +100,7 @@ class OpenStackVMOperations:
              self.out("instance_id : %s" % ip.instance_id)
     
     def listVMs(self):
+        self.out("list vms")
         vm_list = self.nova.servers.list()
         for instance in vm_list:
             self.out("########################## #################\n")
@@ -140,8 +160,7 @@ class OpenStackVMOperations:
         print(e)
 
       return info
-        
-      
+
 
     def getOperation(self, args): 
         if args.operation == "listIP":
