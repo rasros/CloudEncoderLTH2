@@ -12,13 +12,13 @@ def genWL(base):
         time.sleep(st)
 
 def genWL1(base):
-    m = MultipartEncoder(fields={ 'file' : 
+    m = MultipartEncoder(fields={ 'file' :
         ('filename', open('video.mp4', 'rb'), 'video/mp4')})
-
+    startTime = time.time()
     r = requests.post(base,data = m,
             headers={'Content-Type': m.content_type})
     file_url = r.headers["Location"]
-    print("Start," + file_url + "," + str(time.time()) )
+    #print("Start," + file_url + "," + str(time.time()) )
     r2 = requests.get(file_url + "/status")
     status = r2.json()["status"]
 
@@ -30,7 +30,7 @@ def genWL1(base):
     r3 = requests.get(file_url + "/download")
 #    theFile = open('tmp.mp4','wb')
 #    theFile.write(r3.content)
-    print("Stop," + file_url + "," + str(time.time()) )
+    print(file_url + "," + str(time.time()-startTime) )
 
 
 
