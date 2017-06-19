@@ -8,7 +8,7 @@ import time
 def genWL(base):
     while(True):
         genWL1(base)
-        st = random.randint(1,10)
+        st = random.randint(8,10)
         time.sleep(st)
 
 def genWL1(base):
@@ -18,12 +18,10 @@ def genWL1(base):
     r = requests.post(base,data = m,
             headers={'Content-Type': m.content_type})
     file_url = r.headers["Location"]
-    #print("Start," + file_url + "," + str(time.time()) )
     r2 = requests.get(file_url + "/status")
     status = r2.json()["status"]
-
     while ( status != "DONE" ):
-        time.sleep(5)
+        time.sleep(1)
         r2 = requests.get(file_url + "/status")
         status = r2.json()["status"]
 
