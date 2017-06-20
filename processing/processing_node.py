@@ -51,7 +51,14 @@ class ProcessingNode:
         swift = conf.swiftConn()
 
         #get file from Swift
-        os.makedirs(uuid)
+        try:
+            os.makedirs(uuid)
+        except OSError as exc:
+            if exc.errno == errno.EXISTS and os.path.isdir(uuid):
+                pass
+            else:
+                raise
+
         try:
             obj_tuple = swift.get_object(uuid, 'in.mp4')
             with open(uuid + '/in.mp4', 'w') as file:
