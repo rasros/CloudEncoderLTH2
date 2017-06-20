@@ -15,9 +15,27 @@ def package_software():
 # Install common software
 def install_common():
 	run('sudo apt-get -q update')
-	run('sudo apt-get install -q -y python2.7 '+
-			'python-setuptools python2.7-dev python-pip '+
-			'python-cffi-backend libssl-dev etcd openntpd gcc g++ libffi-dev')
+	run('sudo apt-get install -q -y '+' '.join([
+			"python2.7",
+			"python-setuptools",
+			"python2.7-dev",
+			"python-pip",
+			"python-cffi-backend",
+
+			"python-keystoneauth1",
+			"python-babel",
+			"python-novaclient",
+			"python-pika",
+			"python-flask",
+			"python-paramiko",
+
+			"libssl-dev",
+			"etcd",
+			"openntpd",
+			"gcc",
+			"g++",
+			"libffi-dev"
+	]))
 
 # Install control node software
 def install_controller():
