@@ -13,7 +13,8 @@ class ProcessingNode:
     def __init__(self):
         #initializing task queue
         conPara = pika.ConnectionParameters('waspmq',5672,'/',
-                credentials=pika.PlainCredentials("test", "test")
+                credentials=pika.PlainCredentials("test", "test"),
+                heartbeat=1
                 )
         task_queue_connection = pika.BlockingConnection(conPara)
         task_queue_channel = task_queue_connection.channel()
