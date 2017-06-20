@@ -74,7 +74,18 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['keystoneauth1==2.20.0', 'Babel==2.3.4', 'python-novaclient==8.0.0', 'uuid==1.30', 'Flask' ],
+    install_requires=['keystoneauth1==2.20.0',
+            'Babel==2.3.4', 
+            'python-novaclient==8.0.0', 
+            'pika',
+            'uuid==1.30', 
+            'Flask',
+            'Requests_toolbelt',
+            'Requests',
+            'python-swiftclient',
+            'python-glanceclient',
+            'python-keystoneclient'
+            ],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

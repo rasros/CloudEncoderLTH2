@@ -34,7 +34,7 @@ class OpenStackVMOperations:
             project_name=self.projectName,
             auth_url= self.openStackAuthUrl,
             user_domain_name = self.openStackUserDomainName,
-            # domain_name = 'xerces',
+#            domain_name = 'xerces',
             project_domain_name = self.openStackProjectDomainName,
             project_id =self.openStackProjectDomainId
         )
@@ -56,24 +56,21 @@ class OpenStackVMOperations:
                 auth_version='3.0',
                 os_options=_os_options
         )
-                
-        
     def out(self, *arg):
         if self.verbose:
             print(arg)
-       
+
     def monitoringInfo(self,  start_date, end_date):
         usage = self.nova.usage.get( self.projectName, start_date, end_date)
         self.out(usage)
-    
-    
+
     def createFloatingIP(self, VMName):
         self.nova.floating_ip_pools.list()
         floating_ip = self.nova.floating_ips.create(self.nova.floating_ip_pools.list()[0].name)
         self.out("floating IP %s is assigned to %s VM", floating_ip.ip, name)
         instance = self.nova.servers.find_network(name=VMName)
         instance.add_floating_ip(floating_ip)
-        
+
     def createVM(self, VMName, imageName="ubuntu 16.04"):
      # nova.servers.list()
         image = self.findImage(name=imageName)  # nova.images.find(name="Test") #
@@ -82,7 +79,7 @@ class OpenStackVMOperations:
         nics = [{'net-id': net.id}]
         return self.nova.servers.create(name=VMName+"-"+str(uuid.uuid4()), image=image, flavor=flavor,
 					key_name=self.openStackKeyName, nics=nics, userdata=open("vm-init.sh"))
-    
+
     def terminateVM(self,VMName):
         instance = self.nova.servers.find(name=VMName)
         if instance == None :
@@ -91,14 +88,14 @@ class OpenStackVMOperations:
             self.out("deleting server..........")
             self.nova.servers.delete(instance)
             self.out("server %s deleted" % VMName)
-        
+
     def listFloatingIPs(self):
         ip_list = self.nova.floating_ips.list()
         for ip in ip_list:
              self.out("fixed_ip : %s\n" % ip.fixed_ip)
              self.out("ip : %s" % ip.ip)
              self.out("instance_id : %s" % ip.instance_id)
-    
+
     def listVMs(self):
         self.out("list vms")
         vm_list = self.nova.servers.list()
@@ -124,15 +121,15 @@ class OpenStackVMOperations:
       for img in self.nova.glance.list():
         if img.name == name:
           return img
-          
-    
+
+
     def getVMIP(self,VMName):
         instance = self.nova.servers.find(name=VMName)
-    
+
         self.out("Network address info: %s\n" % instance.addresses)
         self.out("fixed ip: %s\n" % instance.networks[self.openStackNetId])
-    
-        
+
+
     def getVMDetail(self,VMName):
         instance = self.nova.servers.find(name=VMName)
         self.out("server id: %s\n" % instance.id)
@@ -177,7 +174,7 @@ class OpenStackVMOperations:
             self.getVMIP(args.name)
         elif args.operation == "monitor":
             self.monitoringInfo(datetime.datetime.strptime('2017-04-04 00:00:00',"%Y-%m-%d %H:%M:%S"),datetime.datetime.strptime('2017-04-05 00:00:00',"%Y-%m-%d %H:%M:%S"))
-   
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--operation",
