@@ -30,7 +30,6 @@ def install_common():
 			"python-paramiko",
 
 			"libssl-dev",
-			"etcd",
 			"openntpd",
 			"gcc",
 			"g++",
@@ -100,3 +99,7 @@ def deploy_control(prefix, etcdip=None):
 #	start_controller_services()
 #	clear_etcd_data()
 	start_controller(prefix, etcdip)
+
+def deploy_entry(prefix, etcdip=None):
+	install_common()
+	install_application()

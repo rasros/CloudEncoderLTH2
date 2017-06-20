@@ -69,6 +69,9 @@ def readConfig(keyval, path, default=None):
 def listControlVMs(openstack, prefix):
 	return [vm for vm in openstack.listVMs() if vm.name.startswith(prefix+"-control-")]
 
+def listEntryVMs(openstack, prefix):
+	return [vm for vm in openstack.listVMs() if vm.name.startswith(prefix+"-entry-")]
+
 def listAllVMs(openstack, prefix):
 	return [vm for vm in openstack.listVMs() if vm.name.startswith(prefix+"-")]
 
@@ -143,10 +146,83 @@ def handleControlNodes(keyval, openstack, prefix, period):
 			elif not vm.status == "BUILD":
 				keyval.delete('/control/starting/'+vm.name)
 				openstack.terminateVM(vm.name)
+
+def handleEntryNodes(keyval, openstack, prefix, period):
+	global IMAGE
+	numnodes = int(readConfig(keyval, "/entry/config/num_nodes", default=1))
+
+	# Get all control VMs from OpenStack
+	vms = listEntryVMs(openstack, prefix)
+	log("Entry nodes:")
+	for vm in vms:
+		log("  {}: {}".format(vm.name, vm.status))
+
+	# If there aren't enough VMs then boot a new one
+	if len(vms) < numnodes:
+		name = prefix+"-entry-"+str(uuid.uuid4())
+		log("Starting a new Entry VM "+name)
+		keyval.write('/entry/starting/'+name, readConfig(keyval, "/entry/config/retries", default=24))
+		vm = openstack.createVM(name, imageName=IMAGE, mtype=SMALLER)
+	elif len(vms) > numnodes:
+		log("Num entry VMs is {} > {}".format(len(vms), numnodes))
+		log("TODO: Implement killing control nodes!!!")
+
+	# List all VMs which Control node has listed as starting up
+	starting = []
+	try:
+		res = keyval.read("/entry/starting/")
+		starting = [ a.key.split('/')[-1] for a in res.leaves ]
+	except:
+		pass
+
+	# Set all nodes which are being configured to being alive
+	for name in starting:
+		keyval.write('/entry/alive/'+name, 'hello', ttl=2*period)
+
+	# Get all valid watchdogs
+	alive = [ a.key.split('/')[-1] for a in keyval.read("/entry/alive/").leaves ]
+
+	# Filter out VMs which have not reset their watchdog
+	gone = [ i for i in range(0, len(vms)) if vms[i].name not in alive ]
+
+	# Shut down the first VM which had not reported 
+	if len(gone) != 0:
+		idx = gone[0]
+		log("Shutting down {} which has not reported in".format(vms[idx].name))
+		openstack.terminateVM(vms[idx].name)
+
+	# Configure the first ready VM in the list of startups and kill malfunctional
+	for vm in vms:
+		if vm.name in starting:
+			if vm.status == "ACTIVE":
+				attempts = int(keyval.read('/entry/starting/'+name).value)
+				addr = vm.networks['waspcourse']
+				log("Attempting to configure {}, attempts left: {}".format(vm.name, attempts))
+				process = subprocess.Popen(["fab", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
+					'-H', addr[0], 'deploy_entry:prefix={},etcdip={}'.format(prefix, myIp())],
+					stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+				while process.poll() is None:
+					for line in iter(process.stdout.readline, b''):
+						log(">>> " + line.rstrip())
+				if not process.returncode == 0:
+					if attempts > 0:
+						keyval.write('/entry/starting/'+name, attempts-1)
+					else:
+						log("Node {} not responding, moved from starting to running and will be killed soon".format(vm.name))
+						keyval.delete('/entry/starting/'+vm.name)
+				else:
+					keyval.delete('/entry/starting/'+vm.name)
+					log("Node {} moved from starting to running".format(vm.name))
+					# Give it some time to report
+					keyval.write('/entry/alive/'+vm.name, 'hello', ttl=2*period)
+			elif not vm.status == "BUILD":
+				keyval.delete('/entry/starting/'+vm.name)
+				openstack.terminateVM(vm.name)
 				
 	
 def runLeader(keyval, openstack, prefix, period):
 	handleControlNodes(keyval, openstack, prefix, period)
+	handleEntryNodes(keyval, openstack, prefix, period)
 
 def main():
 	global IMAGE, cleankill, openstack, keyval
