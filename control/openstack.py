@@ -3,13 +3,11 @@
 from keystoneauth1.identity import v3
 from keystoneauth1 import session
 from novaclient.client import Client as NovaClient
-from glanceclient import Client as GlanceClient
 from swiftclient import Connection as SwiftConnection
 import novaclient.exceptions as NovaExceptions
 import datetime
 import argparse
 import ConfigParser
-import uuid
 
 class WaspSwiftConn:
     def readConf(self, verbose=False):
@@ -71,22 +69,7 @@ class OpenStackVMOperations:
         )
         self.sess = session.Session(auth=self.auth)
         self.nova = NovaClient("2.1", session=self.sess)
-        self.glance = GlanceClient("2", session=self.sess)
-
-
-    def swiftConn(self):
-        _os_options = {
-                'user_domain_name': self.openStackUserDomainName,
-                'project_domain_name': self.openStackProjectDomainName,
-                'project_name': self.projectName
-        }
-        return SwiftConnection(
-                authurl=self.openStackAuthUrl,
-                user=self.openStackUsername,
-                key=self.openStackPassword,
-                auth_version='3.0',
-                os_options=_os_options
-        )
+        
     def out(self, *arg):
         if self.verbose:
             print(arg)
@@ -102,18 +85,14 @@ class OpenStackVMOperations:
         instance = self.nova.servers.find_network(name=VMName)
         instance.add_floating_ip(floating_ip)
 
-    def createVM(self, VMName, imageName="ubuntu 16.04" , initType="vm"):
+    def createVM(self, VMName, imageName="ubuntu 16.04"):
      # nova.servers.list()
         image = self.findImage(name=imageName)  # nova.images.find(name="Test") #
         flavor = self.nova.flavors.find(name="c2m2")
         net = self.nova.neutron.find_network(name=self.openStackNetId)
         nics = [{'net-id': net.id}]
-        userData = open(initType + "-init.sh").read()
-        print userData
-        files = { "home/ubuntu/CloudTranscoderLTH2/config.properties": open('config.properties')}
-
-        return self.nova.servers.create(name=VMName+"-"+str(uuid.uuid4()), image=image, flavor=flavor,
-					key_name=self.openStackKeyName, nics=nics,files=files, userdata=userData)
+        return self.nova.servers.create(name=VMName, image=image, flavor=flavor,
+					key_name=self.openStackKeyName, nics=nics, userdata=open("vm-init.sh"))
 
     def terminateVM(self,VMName):
         instance = self.nova.servers.find(name=VMName)
@@ -132,7 +111,6 @@ class OpenStackVMOperations:
              self.out("instance_id : %s" % ip.instance_id)
 
     def listVMs(self):
-        self.out("list vms")
         vm_list = self.nova.servers.list()
         for instance in vm_list:
             self.out("########################## #################\n")
@@ -163,6 +141,7 @@ class OpenStackVMOperations:
 
         self.out("Network address info: %s\n" % instance.addresses)
         self.out("fixed ip: %s\n" % instance.networks[self.openStackNetId])
+        return instance.networks[self.openStackNetId][0]
 
 
     def getVMDetail(self,VMName):
@@ -201,8 +180,6 @@ class OpenStackVMOperations:
             self.listVMs()
         elif args.operation == "create":
             self.createVM(args.name)
-        elif args.operation == "createEntry":
-            self.createVM(args.name,initType="entry")
         elif args.operation == "terminate":
             self.terminateVM(args.name)
         elif args.operation == "assignFIP":
@@ -218,7 +195,7 @@ if __name__ == '__main__':
         metavar = "VM_OPERATION",
         help = "The operation that you want to perform",
         required = True,
-        choices=["createEntry","create","listVM","VMIP","terminate","listIP","assignFIP","monitor"],
+        choices=["create","listVM","VMIP","terminate","listIP","assignFIP","monitor"],
         dest="operation")
 
     parser.add_argument("-n", "--name",

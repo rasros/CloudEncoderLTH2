@@ -76,17 +76,18 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=['keystoneauth1==2.20.0',
-            'Babel==2.3.4', 
-            'python-novaclient==8.0.0', 
+            'Babel==2.3.4',
+            'python-novaclient==8.0.0',
             'pika',
-            'uuid==1.30', 
+            'uuid==1.30',
             'Flask',
             'Requests_toolbelt',
             'Requests',
             'python-swiftclient',
-            'python-glanceclient',
-            'python-keystoneclient'
-            ],
+            'python-etcd==0.4.5',
+            'Paramiko==2.2.1',
+            'fabric==1.13.2'
+			],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
