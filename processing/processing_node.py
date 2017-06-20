@@ -2,6 +2,7 @@
 import pika
 import time
 import os
+import errno
 import uuid
 from control.openstack import WaspSwiftConn
 import transcode
