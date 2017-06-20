@@ -1,3 +1,4 @@
+#!/usr/bin/env python2
 """A setuptools based setup module.
 
 See:
