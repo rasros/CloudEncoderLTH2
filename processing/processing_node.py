@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 import pika
 import time
 import os
 import uuid
-from control import openstack.WaspSwiftConn
+from control.openstack import WaspSwiftConn
 import transcode
 
 
