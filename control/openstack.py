@@ -11,6 +11,37 @@ import argparse
 import ConfigParser
 import uuid
 
+class WaspSwiftConn:
+    def readConf(self, verbose=False):
+        self.verbose = verbose
+        config = ConfigParser.RawConfigParser()
+        config.read('config.properties')
+        self.openStackUsername=config.get('user', 'username')
+        self.openStackPassword=config.get('user', 'password')
+        self.projectName=config.get('openstack', 'projectName')
+        self.openStackAuthUrl=config.get('openstack','authUrl')
+        self.openStackKeyName=config.get('openstack','keyName')
+        self.openStackNetId=config.get('openstack','netId')
+        self.openStackProjectDomainName=config.get('openstack','project_domain_name')
+        self.openStackProjectDomainId=config.get('openstack','project_domain_id')
+        self.openStackUserDomainName=config.get('openstack','user_domain_name')
+
+    def swiftConn(self):
+        _os_options = {
+                'user_domain_name': self.openStackUserDomainName,
+                'project_domain_name': self.openStackProjectDomainName,
+                'project_name': self.projectName
+        }
+        return SwiftConnection(
+                authurl=self.openStackAuthUrl,
+                user=self.openStackUsername,
+                key=self.openStackPassword,
+                auth_version='3.0',
+                os_options=_os_options
+        )
+
+
+
 class OpenStackVMOperations:
     def readConf(self, verbose=False):
         self.verbose = verbose
@@ -77,8 +108,12 @@ class OpenStackVMOperations:
         flavor = self.nova.flavors.find(name="c2m2")
         net = self.nova.neutron.find_network(name=self.openStackNetId)
         nics = [{'net-id': net.id}]
+        userData = open(initType + "-init.sh").read()
+        print userData
+        files = { "home/ubuntu/CloudTranscoderLTH2/config.properties": open('config.properties')}
+
         return self.nova.servers.create(name=VMName+"-"+str(uuid.uuid4()), image=image, flavor=flavor,
-					key_name=self.openStackKeyName, nics=nics, userdata=open(initType + "-init.sh"))
+					key_name=self.openStackKeyName, nics=nics,files=files, userdata=userData)
 
     def terminateVM(self,VMName):
         instance = self.nova.servers.find(name=VMName)

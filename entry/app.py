@@ -7,7 +7,7 @@ import uuid
 import pika
 import sys
 import threading
-from control.openstack import OpenStackVMOperations
+from control.openstack import WaspSwiftConn
 
 lock = threading.Lock()
 
@@ -31,13 +31,14 @@ def index():
 	theID = uuid.uuid4()
 
 	UUIDToBeConverted = str(theID)
-        os = OpenStackVMOperations()
+        os = WaspSwiftConn()
         os.readConf()
         swift = os.swiftConn()
         swift.put_container(UUIDToBeConverted)
         swift.put_object(UUIDToBeConverted, 'in.mp4',
             contents= videoFile.read(),
             content_type='video/mp4')
+        swift.close()
 	task_queue_channel.basic_publish(exchange='',
                 routing_key='task_queue',
                 body=UUIDToBeConverted,
