@@ -15,7 +15,7 @@ def do(uuid,callback):
     while progress < 99 and noprogress < 60:
         time.sleep(1)
         try:
-            line = subprocess.check_output(['tail', '-1', dir_path + '/encoding-stout_' + str(uuid) + '.txt'])
+            line = subprocess.check_output(['tail', '-1', str(uuid) + 'stdout.txt'])
             printable = set(string.ascii_letters+string.digits+':% \n')
             line = filter(lambda x: x in printable, line)
             ix = line.rfind('Pos:')
