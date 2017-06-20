@@ -65,38 +65,48 @@ def clear_etcd_data():
 		run('etcdctl rm --recursive /log/', quiet=True)
 
 # Starts the controller node software
-def start_controller(prefix, etcdip=None, foreground=None):
+def start_controller(prefix, etcdhost=None, foreground=None):
 	# Copy openstack configuration
 	put('config.properties', '.')
 	# Setup SSH
 	put('ctapp.pem', '.')
 	# Run application
-	if not etcdip is None:
-		run('nohup ctcontrol {} {} &>/dev/null &'.format(prefix, etcdip), pty=False)
+	if not etcdhost is None:
+		run('nohup ctcontrol {} {} &>/dev/null &'.format(prefix, etcdhost), pty=False)
 	else:
 		if foreground is None:
 			run('nohup ctcontrol {} &>/dev/null &'.format(prefix), pty=False)
 		else:
 			run('ctcontrol {}'.format(prefix))
 
+# Start an entry node
+def start_entry(etcdhost, foreground=None):
+	sudo('echo 10.0.0.9 waspmq >> /etc/hosts')
+	# Run application
+	if foreground is None:
+		run('nohup ctentry {} &>/dev/null &'.format(etcdhost), pty=False)
+	else:
+		run('ctentry {}'.format(etcdhost))
+
 # Initial control node deploy from user machine
-def deploy(prefix, etcdip=None, foreground=None):
+def deploy(prefix, etcdhost=None, foreground=None):
 	package_software()
 	install_common()
 	install_controller()
 	install_application()
 	start_controller_services()
 	clear_etcd_data()
-	start_controller(prefix, etcdip, foreground)
+	start_controller(prefix, etcdhost, foreground)
 
-def deploy_control(prefix, etcdip=None):
+def deploy_control(prefix, etcdhost=None):
 	install_common()
 	install_controller()
 	install_application()
 #	start_controller_services()
 #	clear_etcd_data()
-	start_controller(prefix, etcdip)
+	start_controller(prefix, etcdhost)
 
-def deploy_entry(prefix, etcdip=None):
+def deploy_entry(etcdhost, foreground=None):
 	install_common()
 	install_application()
+	start_entry(etcdhost, foreground)

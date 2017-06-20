@@ -2,38 +2,20 @@
 
 from openstack import OpenStackVMOperations
 from keyval import KeyValueStore
+from notify import NotifyThread
 import os
 import sys
 import time
-import etcd
 import uuid
 import subprocess
 import signal
-import threading
 
 global IMAGE, openstack, keyval, VERSION
-VERSION='1'
+VERSION='3'
 IMAGE='ubuntu 16.04'
 SMALLER='c1m05'
 SMALL='c1m1'
 MEDIUM='c2m2'
-
-class NotifyThread(threading.Thread):
-	def __init__(self, host, event):
-		threading.Thread.__init__(self)
-		self.stopped = event
-		if host is None:
-			self.keyval = KeyValueStore(port=2379)
-		else:
-			self.keyval = KeyValueStore(host=host, port=2379)
-		self.name = myName()
-
-	def run(self):
-		period = int(keyval.getConfig("ctrl_period_sec", default=10))
-		keyval.setAlive(self.name, ttl=2*period)
-		while not self.stopped.wait(period): # Report every five seconds
-			period = int(keyval.getConfig("ctrl_period_sec", default=10))
-			keyval.setAlive(self.name, ttl=2*period)
 
 global sigint_org, cleankill
 cleankill = False
@@ -47,7 +29,7 @@ sigint_org = signal.signal(signal.SIGINT, siginthandler)
 def log(s):
 	global keyval
 	print(s)
-	keyval.append("/log/", "{}: {}".format(myName(), s))
+	keyval.log(myName(), s)
 
 def myName():
 	return os.uname()[1]
@@ -63,7 +45,7 @@ def listAllVMs(openstack, prefix):
 	''' List all VMs using the user prefix '''
 	return [vm for vm in openstack.listVMs() if vm.name.startswith(prefix)]
 
-def handleNodeCount(keyval, openstack, prefix, period, app, nodes):
+def handleNodeCount(keyval, openstack, prefix, period, app, nodes, machineType):
 	''' Generic function to check the node count of a certain application
 	 		and launch new VMs if necessary'''
 	global IMAGE,VERSION
@@ -74,7 +56,7 @@ def handleNodeCount(keyval, openstack, prefix, period, app, nodes):
 		name = prefix+str(uuid.uuid4())
 		log("Starting a new "+app+" VM "+name)
 		keyval.setStarting(name, app, VERSION)
-		vm = openstack.createVM(name, imageName=IMAGE, mtype=SMALLER)
+		vm = openstack.createVM(name, imageName=IMAGE, mtype=machineType)
 	elif len(nodes) > numnodes:
 		log("Num "+app+" VMs is {} > {}, shutdown {}".format(len(nodes), numnodes, nodes[0]))
 		openstack.terminateVM(nodes[0])
@@ -95,11 +77,11 @@ def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes):
 			log("Attempting to configure {}, attempts left: {}".format(vm.name, attempts))
 			if name in ctrlNodes:
 				process = subprocess.Popen(["fab", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
-					'-H', addr[0], 'deploy_control:prefix={},etcdip={}'.format(prefix, myIp())],
+					'-H', addr[0], 'deploy_control:prefix={},etcdhost={}'.format(prefix, myIp())],
 					stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 			elif name in entryNodes:
 				process = subprocess.Popen(["fab", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
-					'-H', addr[0], 'deploy_entry:prefix={},etcdip={}'.format(prefix, myIp())],
+					'-H', addr[0], 'deploy_entry:etcdhost={}'.format(myIp())],
 					stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 			while process.poll() is None:
@@ -185,8 +167,8 @@ def runLeader(keyval, openstack, prefix, period):
 	log("Entry nodes: {}".format(','.join(entryNames)))
 	log("Starting nodes: {}".format(','.join(startingNodes)))
 
-	handleNodeCount(keyval, openstack, prefix, period, 'ctrl', ctrlNames)
-	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNames)
+	handleNodeCount(keyval, openstack, prefix, period, 'ctrl', ctrlNames, SMALL)
+	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNames, SMALL)
 	handleStartups(keyval, openstack, prefix, period, ctrlNames, entryNames)
 	killBadNodes(keyval, openstack, prefix, ctrlNames+entryNames)
 
@@ -200,14 +182,13 @@ def main():
 	prefix='ct-'+sys.argv[1]+'-'
 
 	print("Init etcd")
-	stopFlag = threading.Event()
 	if len(sys.argv) > 2:
 		keyval = KeyValueStore(host=sys.argv[2], port=2379)
-		thread = NotifyThread(sys.argv[2], stopFlag)
+		notifyThread = NotifyThread(host=sys.argv[2])
 	else:
 		keyval = KeyValueStore(port=2379)
-		thread = NotifyThread(None, stopFlag)
-	thread.start()
+		notifyThread = NotifyThread()
+	notifyThread.start()
 
 	log("Initiating OpenStack operations")
 
@@ -257,7 +238,7 @@ def main():
 
 			except Exception as e:
 				log(e)
-	stopFlag.set()
+	notifyThread.stop()
 	log("Goodbye!")
 
 if __name__ == "__main__":

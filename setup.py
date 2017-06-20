@@ -120,6 +120,7 @@ setup(
         'console_scripts': [
             'ctclient=client.Client:main',
             'ctcontrol=control.control:main',
+						'ctentry=entry.app:main'
         ],
     },
 )

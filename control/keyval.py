@@ -77,3 +77,7 @@ class KeyValueStore:
 
 	def clearMachine(self, app, name):
 		self.etcd.delete('/control/machines/'+app+'/'+name)
+
+	### Log to the key value store
+	def log(self, name, s):
+		self.append("/log/", "[{:10s}] {}".format(name[:10], s))
