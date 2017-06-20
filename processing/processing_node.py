@@ -79,7 +79,7 @@ class ProcessingNode:
             swift.put_object(uuid, 'out.mp4', contents=file.read(), content_type='video/mp4')
 
         ch.basic_ack(delivery_tag = method.delivery_tag) 
-        print(" [x] Transcoding done for ." % uuid)
+        print(" [x] Transcoding done for %r." % uuid)
 
         print(" [x] Deleting input.")
         swift.delete_object(uuid, 'in.mp4')
