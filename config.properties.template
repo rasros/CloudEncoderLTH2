@@ -1,0 +1,11 @@
+[user]
+username:{your username}
+password:{your password}
+[openstack]
+projectName:CloudTranscoder-LTH2
+authUrl:https://xerces.ericsson.net:5000/v3
+keyName:ctapp
+netId:waspcourse
+project_domain_name:xerces
+project_domain_id:477ad0734d3b4467975920e3c43ea895
+user_domain_name:xerces
