@@ -11,7 +11,8 @@ import subprocess
 import signal
 import threading
 
-global IMAGE, openstack, keyval
+global IMAGE, openstack, keyval, VERSION
+VERSION='1'
 IMAGE='ubuntu 16.04'
 SMALLER='c1m05'
 SMALL='c1m1'
@@ -65,14 +66,14 @@ def listAllVMs(openstack, prefix):
 def handleNodeCount(keyval, openstack, prefix, period, app, nodes):
 	''' Generic function to check the node count of a certain application
 	 		and launch new VMs if necessary'''
-	global IMAGE
+	global IMAGE,VERSION
 	numnodes = int(keyval.getConfig(app+"_num_nodes", default=1))
 
 	# If there aren't enough VMs then boot a new one
 	if len(nodes) < numnodes:
 		name = prefix+str(uuid.uuid4())
 		log("Starting a new "+app+" VM "+name)
-		keyval.setStarting(name, app)
+		keyval.setStarting(name, app, VERSION)
 		vm = openstack.createVM(name, imageName=IMAGE, mtype=SMALLER)
 	elif len(nodes) > numnodes:
 		log("Num "+app+" VMs is {} > {}, shutdown {}".format(len(nodes), numnodes, nodes[0]))
@@ -83,8 +84,6 @@ def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes):
 
 	# List all VMs which Control node has listed as starting up
 	starting = keyval.getStarting()
-
-	log("Starting nodes: {}".format(starting))
 
 	# Configure the first ready VM in the list of startups and kill malfunctional
 	for name in starting:
@@ -142,34 +141,54 @@ def killBadNodes(keyval, openstack, prefix, allNodes):
 		openstack.terminateVM(name)
 
 def runLeader(keyval, openstack, prefix, period):
+	global VERSION
 	''' Main function of the control leader '''
 
 	ctrlNodes=keyval.getMachines('ctrl')
 	entryNodes=keyval.getMachines('entry')
-	allNodes = ctrlNodes+entryNodes
+	startingNodes=keyval.getStarting()
+	ctrlNames=[ x['name'] for x in ctrlNodes ]
+	entryNames=[ x['name'] for x in entryNodes ]
+	allNodes = ctrlNames+entryNames
 	vms = [ vm.name for vm in listAllVMs(openstack, prefix) ]
 
 	for vm in [ vm for vm in vms if vm not in allNodes ]:
 		log("Shutting down unregistered VM " + vm)
 		openstack.terminateVM(vm)
 
-	for node in [ node for node in ctrlNodes if node not in vms ]:
-		log("Non-existing control node " + node)
-		keyval.clearMachine('ctrl', node)
-		ctrlNodes.remove(node)
+	for node in ctrlNodes:
+		name = node['name']
+		if name not in vms:
+			log("Non-existing control node " + name)
+			keyval.clearMachine('ctrl', name)
+			ctrlNames.remove(name)
+		elif node['version'] != VERSION:
+			log("Killing {} which is of wrong version".format(name))
+			openstack.terminateVM(name)
 
-	for node in [ node for node in entryNodes if node not in vms ]:
-		log("Non-existing entry node " + node)
-		keyval.clearMachine('entry', node)
-		entryNodes.remove(node)
+	for node in entryNodes:
+		name = node['name']
+		if name not in vms:
+			log("Non-existing entry node " + name)
+			keyval.clearMachine('entry', name)
+			entryNames.remove(name)
+		elif node['version'] != VERSION:
+			log("Killing {} which is of wrong version".format(name))
+			openstack.terminateVM(name)
 
-	log("Control nodes: {}".format(ctrlNodes))
-	log("Entry nodes: {}".format(entryNodes))
+	for name in [ name for name in startingNodes if name not in vms ]:
+			log("Non-existing starting node " + name)
+			keyval.removeStarting(name)
+			startingNodes.remove(name)
 
-	handleNodeCount(keyval, openstack, prefix, period, 'ctrl', ctrlNodes)
-	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNodes)
-	handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes)
-	killBadNodes(keyval, openstack, prefix, ctrlNodes+entryNodes)
+	log("Control nodes: {}".format(','.join(ctrlNames)))
+	log("Entry nodes: {}".format(','.join(entryNames)))
+	log("Starting nodes: {}".format(','.join(startingNodes)))
+
+	handleNodeCount(keyval, openstack, prefix, period, 'ctrl', ctrlNames)
+	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNames)
+	handleStartups(keyval, openstack, prefix, period, ctrlNames, entryNames)
+	killBadNodes(keyval, openstack, prefix, ctrlNames+entryNames)
 
 def main():
 	global IMAGE, cleankill, openstack, keyval
@@ -246,3 +265,4 @@ if __name__ == "__main__":
 		main()
 	except Exception as e:
 		log(e)
+

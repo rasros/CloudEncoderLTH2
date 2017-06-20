@@ -64,17 +64,16 @@ class KeyValueStore:
 			pass
 		return sorted(ret)
 
-		
-
 	def getMachines(self, app):
 		ret=[]
 		try:
 			for m in self.etcd.read('/control/machines/'+app).leaves:
 				if m.key != "/control/machines/"+app:
-					ret.append(m.key.split('/')[-1])
+					ret.append({'name':m.key.split('/')[-1], 'version':m.value})
 		except Exception as e:
 			pass
-		return sorted(ret)
+		ret.sort(key=lambda x: x['name'])
+		return ret
 
 	def clearMachine(self, app, name):
 		self.etcd.delete('/control/machines/'+app+'/'+name)
