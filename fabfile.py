@@ -69,7 +69,7 @@ def clear_etcd_data():
 		run('etcdctl rm --recursive /log/')
 
 # Starts the controller node software
-def start_controller(prefix, etcdip=None):
+def start_controller(prefix, etcdip=None, foreground=None):
 	# Copy openstack configuration
 	put('config.properties', '.')
 	# Setup SSH
@@ -78,17 +78,20 @@ def start_controller(prefix, etcdip=None):
 	if not etcdip is None:
 		run('nohup ctcontrol {} {} &>/dev/null &'.format(prefix, etcdip), pty=False)
 	else:
-		run('nohup ctcontrol {} &>/dev/null &'.format(prefix), pty=False)
+		if foreground is None:
+			run('nohup ctcontrol {} &>/dev/null &'.format(prefix), pty=False)
+		else:
+			run('ctcontrol {}'.format(prefix))
 
 # Initial control node deploy from user machine
-def deploy(prefix, etcdip=None):
+def deploy(prefix, etcdip=None, foreground=None):
 	package_software()
 	install_common()
 	install_controller()
 	install_application()
 	start_controller_services()
 	clear_etcd_data()
-	start_controller(prefix, etcdip)
+	start_controller(prefix, etcdip, foreground)
 
 def deploy_control(prefix, etcdip=None):
 	install_common()

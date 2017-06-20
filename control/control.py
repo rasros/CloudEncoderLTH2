@@ -8,9 +8,30 @@ import etcd
 import uuid
 import subprocess
 import signal
+import threading
 
 global IMAGE, openstack, keyval
 IMAGE='ubuntu 16.04'
+SMALLER='c1m05'
+SMALL='c1m1'
+MEDIUM='c2m2'
+
+class NotifyThread(threading.Thread):
+	def __init__(self, host, event):
+		threading.Thread.__init__(self)
+		self.stopped = event
+		if host is None:
+			self.keyval = etcd.Client(port=2379)
+		else:
+			self.keyval = etcd.Client(host=host, port=2379)
+		self.name = myName()
+
+	def run(self):
+		period = int(readConfig(keyval, "/control/config/period_sec", default=10))
+		keyval.write("/control/alive/"+self.name, 'hello', ttl=2*period)
+		while not self.stopped.wait(period): # Report every five seconds
+			period = int(readConfig(keyval, "/control/config/period_sec", default=10))
+			keyval.write("/control/alive/"+self.name, 'hello', ttl=2*period)
 
 global sigint_org, cleankill
 cleankill = False
@@ -66,7 +87,7 @@ def handleControlNodes(keyval, openstack, prefix, period):
 		name = prefix+"-control-"+str(uuid.uuid4())
 		log("Starting a new Control VM "+name)
 		keyval.write('/control/starting/'+name, readConfig(keyval, "/control/config/retries", default=24))
-		vm = openstack.createVM(name, imageName=IMAGE)
+		vm = openstack.createVM(name, imageName=IMAGE, mtype=SMALLER)
 	elif len(vms) > numnodes:
 		log("Num control VMs is {} > {}".format(len(vms), numnodes))
 		log("TODO: Implement killing control nodes!!!")
@@ -127,14 +148,9 @@ def handleControlNodes(keyval, openstack, prefix, period):
 def runLeader(keyval, openstack, prefix, period):
 	handleControlNodes(keyval, openstack, prefix, period)
 
-def startControlNode(openstack, prefix):
-	global IMAGE
-	log("Start control instance")
-	vm = openstack.createVM(prefix+"-control-"+str(uuid.uuid4()), imageName=IMAGE)
-	
-
 def main():
 	global IMAGE, cleankill, openstack, keyval
+
 	if len(sys.argv) < 2:
 		print("Please provide a prefix argument")
 		sys.exit(1)
@@ -142,10 +158,14 @@ def main():
 	prefix=sys.argv[1]
 
 	print("Init etcd")
+	stopFlag = threading.Event()
 	if len(sys.argv) > 2:
 		keyval = etcd.Client(host=sys.argv[2], port=2379)
+		thread = NotifyThread(sys.argv[2], stopFlag)
 	else:
 		keyval = etcd.Client(port=2379)
+		thread = NotifyThread(None, stopFlag)
+	thread.start()
 
 	log("Initiating OpenStack operations")
 
@@ -180,13 +200,15 @@ def main():
 					keyval.write("/control/shutdown", 0)
 					log("*** Shutting down")
 					cleankill = True
+
 				if not cleankill:
 					period = int(readConfig(keyval, "/control/config/period_sec", default=10))
-					wakeup += period
-					keyval.write('/control/alive/'+myName(), 'hello', ttl=period*2)
 					if isLeader(keyval):
 						runLeader(keyval, openstack, prefix, period)
-					sleepTime = max(wakeup-time.time(), 0)
+					sleepTime = -1
+					while(sleepTime <= 0):
+						wakeup += period
+						sleepTime = wakeup-time.time()
 
 				if int(readConfig(keyval, "/control/shutdown", default=0)) == 1:
 					keyval.write("/control/shutdown", 0)
@@ -198,7 +220,11 @@ def main():
 
 			except Exception as e:
 				log(e)
+	stopFlag.set()
 	log("Goodbye!")
 
 if __name__ == "__main__":
-	main()
+	try:
+		main()
+	except Exception as e:
+		log(e)

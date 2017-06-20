@@ -85,13 +85,14 @@ class OpenStackVMOperations:
         instance = self.nova.servers.find_network(name=VMName)
         instance.add_floating_ip(floating_ip)
 
-    def createVM(self, VMName, imageName="ubuntu 16.04"):
+    def createVM(self, VMName, imageName="ubuntu 16.04", mtype="c2m2", zone="nova"):
      # nova.servers.list()
         image = self.findImage(name=imageName)  # nova.images.find(name="Test") #
-        flavor = self.nova.flavors.find(name="c2m2")
+        flavor = self.nova.flavors.find(name=mtype)
         net = self.nova.neutron.find_network(name=self.openStackNetId)
         nics = [{'net-id': net.id}]
         return self.nova.servers.create(name=VMName, image=image, flavor=flavor,
+					availability_zone=zone,
 					key_name=self.openStackKeyName, nics=nics, userdata=open("vm-init.sh"))
 
     def terminateVM(self,VMName):
