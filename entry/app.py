@@ -115,6 +115,6 @@ if __name__ == '__main__':
 	t = threading.Thread(target = start_consum , args = [])
 	t.start()
 
-	app.run(debug=False) #DEBUG SHOULD ALWAYS BE FALSE!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	app.run(debug=False,host="0.0.0.0") #DEBUG SHOULD ALWAYS BE FALSE!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 

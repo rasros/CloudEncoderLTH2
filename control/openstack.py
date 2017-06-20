@@ -71,14 +71,14 @@ class OpenStackVMOperations:
         instance = self.nova.servers.find_network(name=VMName)
         instance.add_floating_ip(floating_ip)
 
-    def createVM(self, VMName, imageName="ubuntu 16.04"):
+    def createVM(self, VMName, imageName="ubuntu 16.04" , initType="vm"):
      # nova.servers.list()
         image = self.findImage(name=imageName)  # nova.images.find(name="Test") #
         flavor = self.nova.flavors.find(name="c2m2")
         net = self.nova.neutron.find_network(name=self.openStackNetId)
         nics = [{'net-id': net.id}]
         return self.nova.servers.create(name=VMName+"-"+str(uuid.uuid4()), image=image, flavor=flavor,
-					key_name=self.openStackKeyName, nics=nics, userdata=open("vm-init.sh"))
+					key_name=self.openStackKeyName, nics=nics, userdata=open(initType + "-init.sh"))
 
     def terminateVM(self,VMName):
         instance = self.nova.servers.find(name=VMName)
@@ -159,13 +159,15 @@ class OpenStackVMOperations:
       return info
 
 
-    def getOperation(self, args): 
+    def getOperation(self, args):
         if args.operation == "listIP":
             self.listFloatingIPs()
         elif args.operation == "listVM":
             self.listVMs()
         elif args.operation == "create":
             self.createVM(args.name)
+        elif args.operation == "createEntry":
+            self.createVM(args.name,initType="entry")
         elif args.operation == "terminate":
             self.terminateVM(args.name)
         elif args.operation == "assignFIP":
@@ -181,7 +183,7 @@ if __name__ == '__main__':
         metavar = "VM_OPERATION",
         help = "The operation that you want to perform",
         required = True,
-        choices=["create","listVM","VMIP","terminate","listIP","assignFIP","monitor"],
+        choices=["createEntry","create","listVM","VMIP","terminate","listIP","assignFIP","monitor"],
         dest="operation")
 
     parser.add_argument("-n", "--name",
