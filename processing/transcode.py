@@ -11,6 +11,7 @@ def do(uuid,callback):
     p = subprocess.Popen([dir_path + '/transcode.sh', uuid])
     progress = -1
     noprogress = 0
+    preprog = -1
     print(" [x] Starting transcoding of UUID %r" % uuid)
     while progress < 99 and noprogress < 60:
         time.sleep(1)
@@ -23,7 +24,9 @@ def do(uuid,callback):
             m = re.match('Pos: [0-9 ]+s [0-9 ]+f *([0-9]+)%', pos)
             if m:
                 progress = int(m.group(1).strip())
-                callback(uuid,progress)
+                if progress != preprog:
+                    callback(uuid,progress)
+                    preprog = progress
                 print(' [x] Converted %d%%.' % progress)
                 noprogress = 0
             else:
