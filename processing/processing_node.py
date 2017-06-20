@@ -48,8 +48,14 @@ class ProcessingNode:
         #get file from Swift
         os.makedirs(uuid)
         obj_tuple = swift.get_object(uuid, 'in.mp4')
-        with open(uuid + '/in.mp4', 'w') as file:
-            file.write(obj_tuple[1])
+        try:
+            with open(uuid + '/in.mp4', 'w') as file:
+                file.write(obj_tuple[1])
+        except swiftclient.exceptions.ClientException:
+            print(" [x] Transcoding aborted, no file for %r" % uuid)
+            ch.basic_ack(delivery_tag = method.delivery_tag)
+            return
+
 
         transcode.do(uuid + '/in.mp4', self.progress)
 
@@ -58,7 +64,7 @@ class ProcessingNode:
             swift.put_object(uuid, 'out.mp4', contents=file.read(), content_type='video/mp4')
 
         ch.basic_ack(delivery_tag = method.delivery_tag) 
-        print(" [x] Transcoding done.")
+        print(" [x] Transcoding done for ." % uuid)
 
         print(" [x] Deleting input.")
         swift.delete_object(uuid, 'in.mp4')
