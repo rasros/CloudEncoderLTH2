@@ -154,6 +154,7 @@ class OpenStackVMOperations:
         self.out("server key name: %s\n" % instance.key_name)
         self.out("user_id: %s\n" % instance.user_id)
         self.out("user network info: %s\n" % instance.networks)
+        return instance
 
     def getCloudInfo(self):
       ''' Get some overview information of the cloud

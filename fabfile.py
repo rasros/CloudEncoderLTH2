@@ -20,6 +20,7 @@ def install_common():
 
 	with settings(warn_only=True):
 		sudo('pkill apt-get')
+	sudo('dpkg --configure -a')
 	sudo('apt-get -q update')
 	sudo('apt-get -q -y install '+' '.join([
 			"python2.7",
@@ -59,8 +60,8 @@ def start_controller_services():
 # Clears up system data for clean restart
 def clear_etcd_data():
 	with settings(warn_only=True):
-		run('etcdctl rm --recursive /control/alive', quiet=True)
-		run('etcdctl rm --recursive /control/starting', quiet=True)
+#		run('etcdctl rm --recursive /control/alive', quiet=True)
+#		run('etcdctl rm --recursive /control/starting', quiet=True)
 		run('etcdctl rm --recursive /log/', quiet=True)
 
 # Starts the controller node software

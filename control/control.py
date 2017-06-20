@@ -58,163 +58,118 @@ def myIp():
 def isLeader(keyval):
 	return keyval.etcd.leader['name'] == os.uname()[1]
 
-def listControlVMs(openstack, prefix):
-	return [vm for vm in openstack.listVMs() if vm.name.startswith(prefix+"-control-")]
-
-def listEntryVMs(openstack, prefix):
-	return [vm for vm in openstack.listVMs() if vm.name.startswith(prefix+"-entry-")]
-
 def listAllVMs(openstack, prefix):
-	return [vm for vm in openstack.listVMs() if vm.name.startswith(prefix+"-")]
+	''' List all VMs using the user prefix '''
+	return [vm for vm in openstack.listVMs() if vm.name.startswith(prefix)]
 
-def handleControlNodes(keyval, openstack, prefix, period):
+def handleNodeCount(keyval, openstack, prefix, period, app, nodes):
+	''' Generic function to check the node count of a certain application
+	 		and launch new VMs if necessary'''
 	global IMAGE
-	numnodes = int(keyval.getConfig("ctrl_num_nodes", default=1))
-
-	# Get all control VMs from OpenStack
-	vms = listControlVMs(openstack, prefix)
-	log("Control nodes:")
-	for vm in vms:
-		log("  {}: {}".format(vm.name, vm.status))
+	numnodes = int(keyval.getConfig(app+"_num_nodes", default=1))
 
 	# If there aren't enough VMs then boot a new one
-	if len(vms) < numnodes:
-		name = prefix+"-control-"+str(uuid.uuid4())
-		log("Starting a new Control VM "+name)
-		keyval.etcd.write('/control/starting/'+name, keyval.getConfig("ctrl_retries", default=24))
+	if len(nodes) < numnodes:
+		name = prefix+str(uuid.uuid4())
+		log("Starting a new "+app+" VM "+name)
+		keyval.setStarting(name, app)
 		vm = openstack.createVM(name, imageName=IMAGE, mtype=SMALLER)
-	elif len(vms) > numnodes:
-		log("Num control VMs is {} > {}".format(len(vms), numnodes))
-		log("TODO: Implement killing control nodes!!!")
+	elif len(nodes) > numnodes:
+		log("Num "+app+" VMs is {} > {}, shutdown {}".format(len(nodes), numnodes, nodes[0]))
+		openstack.terminateVM(nodes[0])
+
+def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes):
+	''' Goes through all startup VMs and attempts to install and launch their application '''
 
 	# List all VMs which Control node has listed as starting up
-	starting = []
-	try:
-		res = keyval.etcd.read("/control/starting/")
-		starting = [ a.key.split('/')[-1] for a in res.leaves ]
-	except:
-		pass
+	starting = keyval.getStarting()
 
-	# Set all nodes which are being configured to being alive
-	for name in starting:
-		keyval.setAlive(name, ttl=2*period)
-
-	# Get all valid watchdogs
-	alive = keyval.getAlive()
-
-	# Filter out VMs which have not reset their watchdog
-	gone = [ i for i in range(0, len(vms)) if vms[i].name not in alive ]
-
-	# Shut down the first VM which had not reported 
-	if len(gone) != 0:
-		idx = gone[0]
-		log("Shutting down {} which has not reported in".format(vms[idx].name))
-		openstack.terminateVM(vms[idx].name)
+	log("Starting nodes: {}".format(starting))
 
 	# Configure the first ready VM in the list of startups and kill malfunctional
-	for vm in vms:
-		if vm.name in starting:
-			if vm.status == "ACTIVE":
-				attempts = int(keyval.etcd.read('/control/starting/'+name).value)
-				addr = vm.networks['waspcourse']
-				log("Attempting to configure {}, attempts left: {}".format(vm.name, attempts))
+	for name in starting:
+		vm = openstack.getVMDetail(name)
+		if vm.status == "ACTIVE":
+			attempts = int(keyval.etcd.read('/control/starting/'+name).value)
+			addr = vm.networks['waspcourse']
+
+			log("Attempting to configure {}, attempts left: {}".format(vm.name, attempts))
+			if name in ctrlNodes:
 				process = subprocess.Popen(["fab", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
 					'-H', addr[0], 'deploy_control:prefix={},etcdip={}'.format(prefix, myIp())],
 					stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-				while process.poll() is None:
-					for line in iter(process.stdout.readline, b''):
-						log(">>> " + line.rstrip())
-				if not process.returncode == 0:
-					if attempts > 0:
-						keyval.etcd.write('/control/starting/'+name, attempts-1)
-					else:
-						log("Node {} not responding, moved from starting to running and will be killed soon".format(vm.name))
-						keyval.etcd.delete('/control/starting/'+vm.name)
+			elif name in entryNodes:
+				process = subprocess.Popen(["fab", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
+					'-H', addr[0], 'deploy_entry:prefix={},etcdip={}'.format(prefix, myIp())],
+					stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+			while process.poll() is None:
+				for line in iter(process.stdout.readline, b''):
+					log(">>> " + line.rstrip())
+			if not process.returncode == 0:
+				if attempts > 0:
+					keyval.updateStarting(name, attempts-1)
 				else:
-					keyval.etcd.delete('/control/starting/'+vm.name)
-					log("Node {} moved from starting to running".format(vm.name))
-					# Give it some time to report
-					keyval.setAlive(vm.name, ttl=2*period)
-			elif not vm.status == "BUILD":
-				keyval.etcd.delete('/control/starting/'+vm.name)
-				openstack.terminateVM(vm.name)
+					log("Node {} not responding, killing it".format(name))
+					keyval.removeStarting(name)
+					openstack.terminateVM(name)
+			else:
+				keyval.removeStarting(name)
+				log("Node {} moved from starting to running".format(name))
+				# Give it some time to report
+				keyval.setAlive(name, ttl=2*period)
 
-def handleEntryNodes(keyval, openstack, prefix, period):
-	global IMAGE
-	numnodes = int(keyval.getConfig("entry_num_nodes", default=1))
-
-	# Get all control VMs from OpenStack
-	vms = listEntryVMs(openstack, prefix)
-	log("Entry nodes:")
-	for vm in vms:
-		log("  {}: {}".format(vm.name, vm.status))
-
-	# If there aren't enough VMs then boot a new one
-	if len(vms) < numnodes:
-		name = prefix+"-entry-"+str(uuid.uuid4())
-		log("Starting a new Entry VM "+name)
-		keyval.etcd.write('/entry/starting/'+name, keyval.getConfig("entry_retries", default=24))
-		vm = openstack.createVM(name, imageName=IMAGE, mtype=SMALLER)
-	elif len(vms) > numnodes:
-		log("Num entry VMs is {} > {}".format(len(vms), numnodes))
-		log("TODO: Implement killing control nodes!!!")
-
-	# List all VMs which Control node has listed as starting up
-	starting = []
-	try:
-		res = keyval.etcd.read("/entry/starting/")
-		starting = [ a.key.split('/')[-1] for a in res.leaves ]
-	except:
-		pass
+		elif not vm.status == "BUILD":
+			keyval.removeStarting(name)
+			openstack.terminateVM(name)
 
 	# Set all nodes which are being configured to being alive
 	for name in starting:
 		keyval.setAlive(name, ttl=2*period)
 
+
+def killBadNodes(keyval, openstack, prefix, allNodes):
+	''' Kill nodes which have not reported in '''
 	# Get all valid watchdogs
 	alive = keyval.getAlive()
 
 	# Filter out VMs which have not reset their watchdog
-	gone = [ i for i in range(0, len(vms)) if vms[i].name not in alive ]
+	gone = [ name for name in allNodes if name not in alive ]
 
-	# Shut down the first VM which had not reported 
-	if len(gone) != 0:
-		idx = gone[0]
-		log("Shutting down {} which has not reported in".format(vms[idx].name))
-		openstack.terminateVM(vms[idx].name)
+	# Shut down VMs which have not reported
+	for name in gone:
+		log("Shutting down {}, it has not notified in a while".format(name))
+		openstack.terminateVM(name)
 
-	# Configure the first ready VM in the list of startups and kill malfunctional
-	for vm in vms:
-		if vm.name in starting:
-			if vm.status == "ACTIVE":
-				attempts = int(keyval.etcd.read('/entry/starting/'+name).value)
-				addr = vm.networks['waspcourse']
-				log("Attempting to configure {}, attempts left: {}".format(vm.name, attempts))
-				process = subprocess.Popen(["fab", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
-					'-H', addr[0], 'deploy_entry:prefix={},etcdip={}'.format(prefix, myIp())],
-					stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-				while process.poll() is None:
-					for line in iter(process.stdout.readline, b''):
-						log(">>> " + line.rstrip())
-				if not process.returncode == 0:
-					if attempts > 0:
-						keyval.etcd.write('/entry/starting/'+name, attempts-1)
-					else:
-						log("Node {} not responding, moved from starting to running and will be killed soon".format(vm.name))
-						keyval.etcd.delete('/entry/starting/'+vm.name)
-				else:
-					keyval.etcd.delete('/entry/starting/'+vm.name)
-					log("Node {} moved from starting to running".format(vm.name))
-					# Give it some time to report
-					keyval.setAlive(vm.name, ttl=2*period)
-			elif not vm.status == "BUILD":
-				keyval.etcd.delete('/entry/starting/'+vm.name)
-				openstack.terminateVM(vm.name)
-				
-	
 def runLeader(keyval, openstack, prefix, period):
-	handleControlNodes(keyval, openstack, prefix, period)
-	handleEntryNodes(keyval, openstack, prefix, period)
+	''' Main function of the control leader '''
+
+	ctrlNodes=keyval.getMachines('ctrl')
+	entryNodes=keyval.getMachines('entry')
+	allNodes = ctrlNodes+entryNodes
+	vms = [ vm.name for vm in listAllVMs(openstack, prefix) ]
+
+	for vm in [ vm for vm in vms if vm not in allNodes ]:
+		log("Shutting down unregistered VM " + vm)
+		openstack.terminateVM(vm)
+
+	for node in [ node for node in ctrlNodes if node not in vms ]:
+		log("Non-existing control node " + node)
+		keyval.clearMachine('ctrl', node)
+		ctrlNodes.remove(node)
+
+	for node in [ node for node in entryNodes if node not in vms ]:
+		log("Non-existing entry node " + node)
+		keyval.clearMachine('entry', node)
+		entryNodes.remove(node)
+
+	log("Control nodes: {}".format(ctrlNodes))
+	log("Entry nodes: {}".format(entryNodes))
+
+	handleNodeCount(keyval, openstack, prefix, period, 'ctrl', ctrlNodes)
+	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNodes)
+	handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes)
+	killBadNodes(keyval, openstack, prefix, ctrlNodes+entryNodes)
 
 def main():
 	global IMAGE, cleankill, openstack, keyval
@@ -223,7 +178,7 @@ def main():
 		print("Please provide a prefix argument")
 		sys.exit(1)
 
-	prefix=sys.argv[1]
+	prefix='ct-'+sys.argv[1]+'-'
 
 	print("Init etcd")
 	stopFlag = threading.Event()
@@ -248,12 +203,6 @@ def main():
 	if not IMAGE in openstack.listImageNames():
 		log("Image {} not found".format(IMAGE))
 		sys.exit(1)
-
-	if len(sys.argv) < 2:
-		for vm in openstack.listVMs():
-			if vm.name.startswith(prefix):
-				log("Killing lingering machine: " + vm.name)
-				openstack.terminateVM(vm.name)
 
 	wakeup = time.time()
 	while True:

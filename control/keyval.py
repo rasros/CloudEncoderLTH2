@@ -31,6 +31,7 @@ class KeyValueStore:
 		self.etcd.write(path, value)
 
 	### Watchdog
+
 	def setAlive(self, name, ttl=None):
 		if ttl is None:
 			period = int(self.getConfig("ctrl_period_sec", default=10))
@@ -39,3 +40,41 @@ class KeyValueStore:
 
 	def getAlive(self):
 		return [ a.key.split('/')[-1] for a in self.etcd.read("/control/alive/").leaves ]
+
+	### Machine sets and states
+
+	def setStarting(self, name, app, version=0, default_attempts=24):
+		attempts = self.getConfig(app+'_retries', default=default_attempts)
+		self.etcd.write('/control/starting/'+name, attempts)
+		self.etcd.write('/control/machines/'+app+'/'+name, version)
+
+	def updateStarting(self, name, attempts):
+		self.etcd.write('/control/starting/'+name, attempts)
+
+	def removeStarting(self, name):
+		self.etcd.delete('/control/starting/'+name)
+
+	def getStarting(self):
+		ret=[]
+		try:
+			for m in self.etcd.read('/control/starting').leaves:
+				if m.key != "/control/starting":
+					ret.append(m.key.split('/')[-1])
+		except Exception as e:
+			pass
+		return sorted(ret)
+
+		
+
+	def getMachines(self, app):
+		ret=[]
+		try:
+			for m in self.etcd.read('/control/machines/'+app).leaves:
+				if m.key != "/control/machines/"+app:
+					ret.append(m.key.split('/')[-1])
+		except Exception as e:
+			pass
+		return sorted(ret)
+
+	def clearMachine(self, app, name):
+		self.etcd.delete('/control/machines/'+app+'/'+name)
