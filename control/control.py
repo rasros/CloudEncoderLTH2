@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from openstack import OpenStackVMOperations
+from keyval import KeyValueStore
 import os
 import sys
 import time
@@ -21,17 +22,17 @@ class NotifyThread(threading.Thread):
 		threading.Thread.__init__(self)
 		self.stopped = event
 		if host is None:
-			self.keyval = etcd.Client(port=2379)
+			self.keyval = KeyValueStore(port=2379)
 		else:
-			self.keyval = etcd.Client(host=host, port=2379)
+			self.keyval = KeyValueStore(host=host, port=2379)
 		self.name = myName()
 
 	def run(self):
-		period = int(readConfig(keyval, "/control/config/period_sec", default=10))
-		keyval.write("/control/alive/"+self.name, 'hello', ttl=2*period)
+		period = int(keyval.getConfig("ctrl_period_sec", default=10))
+		keyval.setAlive(self.name, ttl=2*period)
 		while not self.stopped.wait(period): # Report every five seconds
-			period = int(readConfig(keyval, "/control/config/period_sec", default=10))
-			keyval.write("/control/alive/"+self.name, 'hello', ttl=2*period)
+			period = int(keyval.getConfig("ctrl_period_sec", default=10))
+			keyval.setAlive(self.name, ttl=2*period)
 
 global sigint_org, cleankill
 cleankill = False
@@ -45,7 +46,7 @@ sigint_org = signal.signal(signal.SIGINT, siginthandler)
 def log(s):
 	global keyval
 	print(s)
-	keyval.write("/log/", "{}: {}".format(myName(), s), append=True)
+	keyval.append("/log/", "{}: {}".format(myName(), s))
 
 def myName():
 	return os.uname()[1]
@@ -55,16 +56,7 @@ def myIp():
 	return openstack.getVMIP(myName())
 
 def isLeader(keyval):
-	return keyval.leader['name'] == os.uname()[1]
-
-def readConfig(keyval, path, default=None):
-	try:
-		res = keyval.read(path, timeout=1)
-	except etcd.EtcdKeyNotFound as e:
-		if not default is None:
-			keyval.write(path, default)
-		return default
-	return res.value
+	return keyval.etcd.leader['name'] == os.uname()[1]
 
 def listControlVMs(openstack, prefix):
 	return [vm for vm in openstack.listVMs() if vm.name.startswith(prefix+"-control-")]
@@ -77,7 +69,7 @@ def listAllVMs(openstack, prefix):
 
 def handleControlNodes(keyval, openstack, prefix, period):
 	global IMAGE
-	numnodes = int(readConfig(keyval, "/control/config/num_nodes", default=2))
+	numnodes = int(keyval.getConfig("ctrl_num_nodes", default=1))
 
 	# Get all control VMs from OpenStack
 	vms = listControlVMs(openstack, prefix)
@@ -89,7 +81,7 @@ def handleControlNodes(keyval, openstack, prefix, period):
 	if len(vms) < numnodes:
 		name = prefix+"-control-"+str(uuid.uuid4())
 		log("Starting a new Control VM "+name)
-		keyval.write('/control/starting/'+name, readConfig(keyval, "/control/config/retries", default=24))
+		keyval.etcd.write('/control/starting/'+name, keyval.getConfig("ctrl_retries", default=24))
 		vm = openstack.createVM(name, imageName=IMAGE, mtype=SMALLER)
 	elif len(vms) > numnodes:
 		log("Num control VMs is {} > {}".format(len(vms), numnodes))
@@ -98,17 +90,17 @@ def handleControlNodes(keyval, openstack, prefix, period):
 	# List all VMs which Control node has listed as starting up
 	starting = []
 	try:
-		res = keyval.read("/control/starting/")
+		res = keyval.etcd.read("/control/starting/")
 		starting = [ a.key.split('/')[-1] for a in res.leaves ]
 	except:
 		pass
 
 	# Set all nodes which are being configured to being alive
 	for name in starting:
-		keyval.write('/control/alive/'+name, 'hello', ttl=2*period)
+		keyval.setAlive(name, ttl=2*period)
 
 	# Get all valid watchdogs
-	alive = [ a.key.split('/')[-1] for a in keyval.read("/control/alive/").leaves ]
+	alive = keyval.getAlive()
 
 	# Filter out VMs which have not reset their watchdog
 	gone = [ i for i in range(0, len(vms)) if vms[i].name not in alive ]
@@ -123,7 +115,7 @@ def handleControlNodes(keyval, openstack, prefix, period):
 	for vm in vms:
 		if vm.name in starting:
 			if vm.status == "ACTIVE":
-				attempts = int(keyval.read('/control/starting/'+name).value)
+				attempts = int(keyval.etcd.read('/control/starting/'+name).value)
 				addr = vm.networks['waspcourse']
 				log("Attempting to configure {}, attempts left: {}".format(vm.name, attempts))
 				process = subprocess.Popen(["fab", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
@@ -134,22 +126,22 @@ def handleControlNodes(keyval, openstack, prefix, period):
 						log(">>> " + line.rstrip())
 				if not process.returncode == 0:
 					if attempts > 0:
-						keyval.write('/control/starting/'+name, attempts-1)
+						keyval.etcd.write('/control/starting/'+name, attempts-1)
 					else:
 						log("Node {} not responding, moved from starting to running and will be killed soon".format(vm.name))
-						keyval.delete('/control/starting/'+vm.name)
+						keyval.etcd.delete('/control/starting/'+vm.name)
 				else:
-					keyval.delete('/control/starting/'+vm.name)
+					keyval.etcd.delete('/control/starting/'+vm.name)
 					log("Node {} moved from starting to running".format(vm.name))
 					# Give it some time to report
-					keyval.write('/control/alive/'+vm.name, 'hello', ttl=2*period)
+					keyval.setAlive(vm.name, ttl=2*period)
 			elif not vm.status == "BUILD":
-				keyval.delete('/control/starting/'+vm.name)
+				keyval.etcd.delete('/control/starting/'+vm.name)
 				openstack.terminateVM(vm.name)
 
 def handleEntryNodes(keyval, openstack, prefix, period):
 	global IMAGE
-	numnodes = int(readConfig(keyval, "/entry/config/num_nodes", default=1))
+	numnodes = int(keyval.getConfig("entry_num_nodes", default=1))
 
 	# Get all control VMs from OpenStack
 	vms = listEntryVMs(openstack, prefix)
@@ -161,7 +153,7 @@ def handleEntryNodes(keyval, openstack, prefix, period):
 	if len(vms) < numnodes:
 		name = prefix+"-entry-"+str(uuid.uuid4())
 		log("Starting a new Entry VM "+name)
-		keyval.write('/entry/starting/'+name, readConfig(keyval, "/entry/config/retries", default=24))
+		keyval.etcd.write('/entry/starting/'+name, keyval.getConfig("entry_retries", default=24))
 		vm = openstack.createVM(name, imageName=IMAGE, mtype=SMALLER)
 	elif len(vms) > numnodes:
 		log("Num entry VMs is {} > {}".format(len(vms), numnodes))
@@ -170,17 +162,17 @@ def handleEntryNodes(keyval, openstack, prefix, period):
 	# List all VMs which Control node has listed as starting up
 	starting = []
 	try:
-		res = keyval.read("/entry/starting/")
+		res = keyval.etcd.read("/entry/starting/")
 		starting = [ a.key.split('/')[-1] for a in res.leaves ]
 	except:
 		pass
 
 	# Set all nodes which are being configured to being alive
 	for name in starting:
-		keyval.write('/entry/alive/'+name, 'hello', ttl=2*period)
+		keyval.setAlive(name, ttl=2*period)
 
 	# Get all valid watchdogs
-	alive = [ a.key.split('/')[-1] for a in keyval.read("/entry/alive/").leaves ]
+	alive = keyval.getAlive()
 
 	# Filter out VMs which have not reset their watchdog
 	gone = [ i for i in range(0, len(vms)) if vms[i].name not in alive ]
@@ -195,7 +187,7 @@ def handleEntryNodes(keyval, openstack, prefix, period):
 	for vm in vms:
 		if vm.name in starting:
 			if vm.status == "ACTIVE":
-				attempts = int(keyval.read('/entry/starting/'+name).value)
+				attempts = int(keyval.etcd.read('/entry/starting/'+name).value)
 				addr = vm.networks['waspcourse']
 				log("Attempting to configure {}, attempts left: {}".format(vm.name, attempts))
 				process = subprocess.Popen(["fab", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
@@ -206,17 +198,17 @@ def handleEntryNodes(keyval, openstack, prefix, period):
 						log(">>> " + line.rstrip())
 				if not process.returncode == 0:
 					if attempts > 0:
-						keyval.write('/entry/starting/'+name, attempts-1)
+						keyval.etcd.write('/entry/starting/'+name, attempts-1)
 					else:
 						log("Node {} not responding, moved from starting to running and will be killed soon".format(vm.name))
-						keyval.delete('/entry/starting/'+vm.name)
+						keyval.etcd.delete('/entry/starting/'+vm.name)
 				else:
-					keyval.delete('/entry/starting/'+vm.name)
+					keyval.etcd.delete('/entry/starting/'+vm.name)
 					log("Node {} moved from starting to running".format(vm.name))
 					# Give it some time to report
-					keyval.write('/entry/alive/'+vm.name, 'hello', ttl=2*period)
+					keyval.setAlive(vm.name, ttl=2*period)
 			elif not vm.status == "BUILD":
-				keyval.delete('/entry/starting/'+vm.name)
+				keyval.etcd.delete('/entry/starting/'+vm.name)
 				openstack.terminateVM(vm.name)
 				
 	
@@ -236,10 +228,10 @@ def main():
 	print("Init etcd")
 	stopFlag = threading.Event()
 	if len(sys.argv) > 2:
-		keyval = etcd.Client(host=sys.argv[2], port=2379)
+		keyval = KeyValueStore(host=sys.argv[2], port=2379)
 		thread = NotifyThread(sys.argv[2], stopFlag)
 	else:
-		keyval = etcd.Client(port=2379)
+		keyval = KeyValueStore(port=2379)
 		thread = NotifyThread(None, stopFlag)
 	thread.start()
 
@@ -265,6 +257,7 @@ def main():
 
 	wakeup = time.time()
 	while True:
+		log("--- Loop ---")
 		if cleankill:
 			for vm in listAllVMs(openstack, prefix):
 				log("Shutting down {}".format(vm.name))
@@ -272,13 +265,13 @@ def main():
 			break
 		else:
 			try:
-				if int(readConfig(keyval, "/control/shutdown", default=0)) == 1:
-					keyval.write("/control/shutdown", 0)
+				if int(keyval.getConfig("shutdown", default=0)) == 1:
+					keyval.putConfig("shutdown", 0)
 					log("*** Shutting down")
 					cleankill = True
 
 				if not cleankill:
-					period = int(readConfig(keyval, "/control/config/period_sec", default=10))
+					period = int(keyval.getConfig("ctrl_period_sec", default=10))
 					if isLeader(keyval):
 						runLeader(keyval, openstack, prefix, period)
 					sleepTime = -1
@@ -286,8 +279,8 @@ def main():
 						wakeup += period
 						sleepTime = wakeup-time.time()
 
-				if int(readConfig(keyval, "/control/shutdown", default=0)) == 1:
-					keyval.write("/control/shutdown", 0)
+				if int(keyval.getConfig("shutdown", default=0)) == 1:
+					keyval.putConfig("shutdown", 0)
 					log("*** Shutting down")
 					cleankill = True
 				if not cleankill:
