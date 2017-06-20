@@ -16,7 +16,7 @@ class ProcessingNode:
                 credentials=pika.PlainCredentials("test", "test")
                 )
         task_queue_connection = pika.SelectConnection(conPara)
-        task_queue_channel = task_queue_connection.channel()
+        task_queue_channel = task_queue_connection.channel(id)
         task_queue_channel.queue_declare(queue='task_queue', durable=True)
 
         #initializing status queue
