@@ -52,8 +52,8 @@ class ProcessingNode:
 
         #get file from Swift
         os.makedirs(uuid)
-        obj_tuple = swift.get_object(uuid, 'in.mp4')
         try:
+            obj_tuple = swift.get_object(uuid, 'in.mp4')
             with open(uuid + '/in.mp4', 'w') as file:
                 file.write(obj_tuple[1])
         except swiftclient.exceptions.ClientException:
