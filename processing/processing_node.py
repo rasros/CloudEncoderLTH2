@@ -6,6 +6,7 @@ import errno
 import uuid
 from control.openstack import WaspSwiftConn
 import transcode
+import swiftclient
 
 
 class ProcessingNode:
