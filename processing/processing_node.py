@@ -30,7 +30,7 @@ class ProcessingNode:
 
 
 
-    def progress(self, uuid, progress)
+    def progress(self, uuid, progress):
         self.status_channel.basic_publish(exchange='',
                           routing_key='status_queue',
                           body=uuid + " " + str(progress),
@@ -72,5 +72,5 @@ class ProcessingNode:
         swift.close()
 
 if __name__ == '__main__':
-    node = ProcessingNode(uuid.uuid4())
+    node = ProcessingNode()
     print(' [*] Waiting for files to convert. To exit press CTRL+C')
