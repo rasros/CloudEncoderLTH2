@@ -1,10 +1,11 @@
-#!/bin/sh
-
+#!/bin/bash
 # Install some packages
 sudo apt-get -y update
 sudo apt-get install -y python-dev
 sudo apt-get install -y python-pip
-cd
+
+cd /home/ubuntu/
+
 git clone https://github.com/rasros/CloudTranscoderLTH2.git
 export LC_ALL=C
 
