@@ -10,15 +10,17 @@ import transcode
 class ProcessingNode:
     def __init__(self):
         #initializing task queue
-        task_queue_connection = pika.BlockingConnection(pika.ConnectionParameters(
-                host='localhost'))
+        conPara = pika.ConnectionParameters('waspmq',5672,'/',
+                credentials=pika.PlainCredentials("test", "test")
+                )
+        task_queue_connection = pika.BlockingConnection(conPara)
         task_queue_channel = task_queue_connection.channel()
         task_queue_channel.queue_declare(queue='task_queue', durable=True)
 
 
+
         #initializing status queue
-        status_connection = pika.BlockingConnection(pika.ConnectionParameters(
-                host='localhost'))
+        status_connection = pika.BlockingConnection(conPara)
         self.status_channel = status_connection.channel()
         self.status_channel.queue_declare(queue='status_queue', durable=True)
 
@@ -26,8 +28,8 @@ class ProcessingNode:
         task_queue_channel.basic_consume(self.process,
                               queue='task_queue')
 
-        task_queue_channel.start_consuming()
         print(' [*] Waiting for files to convert. To exit press CTRL+C')
+        task_queue_channel.start_consuming()
 
 
 
