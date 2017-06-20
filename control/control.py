@@ -76,7 +76,7 @@ def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes):
 
 			log("Attempting to configure {}, attempts left: {}".format(vm.name, attempts))
 			if name in ctrlNodes:
-				process = subprocess.Popen(["fab", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
+				process = subprocess.Popen(["fab", "-t", "10", "-T", "60", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
 					'-H', addr[0], 'deploy_control:prefix={},etcdhost={}'.format(prefix, myIp())],
 					stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 			elif name in entryNodes:
@@ -205,7 +205,8 @@ def main():
 		sys.exit(1)
 
 	wakeup = time.time()
-	while True:
+	killed = False
+	while not killed:
 		log("--- Loop ---")
 		if cleankill:
 			for vm in listAllVMs(openstack, prefix):
@@ -214,6 +215,11 @@ def main():
 			break
 		else:
 			try:
+				if int(keyval.getConfig("kill", default=0)) == 1:
+					keyval.putConfig("kill", 0)
+					killed = True
+					raise Exception("*** Killed")
+					
 				if int(keyval.getConfig("shutdown", default=0)) == 1:
 					keyval.putConfig("shutdown", 0)
 					log("*** Shutting down")
@@ -228,10 +234,16 @@ def main():
 						wakeup += period
 						sleepTime = wakeup-time.time()
 
+				if int(keyval.getConfig("kill", default=0)) == 1:
+					keyval.putConfig("kill", 0)
+					killed = True
+					raise Exception("*** Killed")
+
 				if int(keyval.getConfig("shutdown", default=0)) == 1:
 					keyval.putConfig("shutdown", 0)
 					log("*** Shutting down")
 					cleankill = True
+
 				if not cleankill:
 					log("Sleep {} seconds".format(sleepTime))
 					time.sleep(sleepTime)
