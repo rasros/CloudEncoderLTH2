@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 
-from control import openstack.OpenStackVMOperations
+from control.openstack import OpenStackVMOperations
 
 def main():
     os = OpenStackVMOperations()

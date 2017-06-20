@@ -2,7 +2,7 @@
 from flask import Flask
 from flask import request
 from flask import Response
-from flask import jsonify 
+from flask import jsonify
 import uuid
 import pika
 import sys
@@ -15,8 +15,10 @@ status_dict = {}
 status_channel = {}
 
 #initializing status queue
-status_connection = pika.BlockingConnection(pika.ConnectionParameters(
-        host='localhost'))
+conPara = pika.ConnectionParameters('waspmq',5672,'/',
+        credentials=pika.PlainCredentials("test", "test")
+        )
+status_connection = pika.BlockingConnection(conPara)
 status_channel = status_connection.channel()
 status_channel.queue_declare(queue='status_queue', durable=True)
 
@@ -29,11 +31,12 @@ def index():
 	videoFile.save(str(theID) + ".mp4")
 	UUIDToBeConverted = str(theID)
 	task_queue_channel.basic_publish(exchange='',
-					  routing_key='task_queue',
-					  body=UUIDToBeConverted,
-					  properties=pika.BasicProperties(
-						 delivery_mode = 2, # make message persistent
-					  ))
+                routing_key='task_queue',
+                body=UUIDToBeConverted,
+                properties=pika.BasicProperties(
+                delivery_mode = 2,
+                # make message persistent
+                ))
 	print("  [x] Sent request for converting %r" % UUIDToBeConverted)
 
 	status_dict[str(theID)] = 1
@@ -43,7 +46,7 @@ def index():
 
 @app.route('/<uuid>/status')
 def status(uuid):
-	
+
 	global status_dict
 	global status_channel#global status_dict
 	print "  STATUS: Length of dictionary: " + str(len(status_dict) )
@@ -53,7 +56,7 @@ def status(uuid):
 	else:
 		print "  STATUS: dictionary has not: " + uuid
 		progress = 0
-	
+
 	if(progress == 0):
 		print "  STATUS: progress: " + str(progress)
 		res = { 'status' : 'QUEUED' , 'progress' : 0 }
@@ -73,7 +76,7 @@ def download(uuid):
 	resp.data = theFile.read()
 	index = 0
 	return resp
-	
+
 def callback(ch, method, properties, body):
 
 	global status_dict
@@ -95,8 +98,7 @@ status_channel.basic_consume(callback,
                       queue='status_queue')
 
 if __name__ == '__main__':
-	task_queue_connection = pika.BlockingConnection(pika.ConnectionParameters(
-		host='localhost'))
+	task_queue_connection = pika.BlockingConnection(conPara)
 	task_queue_channel = task_queue_connection.channel()
 	task_queue_channel.queue_declare(queue='task_queue', durable=True)
 
@@ -106,5 +108,5 @@ if __name__ == '__main__':
 	t.start()
 
 	app.run(debug=False) #DEBUG SHOULD ALWAYS BE FALSE!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	
+
 
