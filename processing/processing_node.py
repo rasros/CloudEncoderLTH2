@@ -69,9 +69,10 @@ class ProcessingNode:
             print(" [x] Transcoding aborted, no file for %r" % uuid)
             ch.basic_ack(delivery_tag = method.delivery_tag)
             return
+        
+        print(" [x] Downloaded file.")
 
-
-        transcode.do(uuid + '/in.mp4', self.progress)
+        transcode.do(uuid, self.progress)
 
         #send file to Swift
         with open(uuid + '/out.mp4', 'r') as file:
