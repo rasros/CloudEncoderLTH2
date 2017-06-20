@@ -55,7 +55,7 @@ class ProcessingNode:
         try:
             os.makedirs(uuid)
         except OSError as exc:
-            if exc.errno == errno.EXISTS and os.path.isdir(uuid):
+            if exc.errno == errno.EEXISTS and os.path.isdir(uuid):
                 pass
             else:
                 raise
