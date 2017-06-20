@@ -75,17 +75,12 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['keystoneauth1==2.20.0',
-            'Babel==2.3.4',
-            'python-novaclient==8.0.0',
-            'pika',
+    install_requires=[
             'uuid==1.30',
-            'Flask',
             'Requests_toolbelt',
             'Requests',
             'python-swiftclient',
             'python-etcd==0.4.5',
-            'Paramiko==2.2.1',
             'fabric==1.13.2'
 			],
 
@@ -94,8 +89,14 @@ setup(
     # for example:
     # $ pip install -e .[dev,test]
     extras_require={
-        'dev': [],
-        'test': [],
+				'all': [
+					'keystoneauth1==2.20.0',
+          'Babel==2.3.4',
+          'python-novaclient==8.0.0',
+          'pika',
+          'Flask',
+          'Paramiko==2.2.1',
+				]
     },
 
     # If there are data files included in your packages that need to be
