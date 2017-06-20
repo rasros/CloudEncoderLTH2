@@ -1,5 +1,5 @@
 from __future__ import with_statement
-from fabric.api import run, local, settings, put, env
+from fabric.api import run, local, settings, put, env, sudo
 
 # Creates a temporary git stash from which a software archive is created
 def package_software():
@@ -14,41 +14,37 @@ def package_software():
 
 # Install common software
 def install_common():
-	run('sudo apt-get -q update')
-	run('sudo apt-get install -q -y '+' '.join([
+	# Kill system update tasks, we are in control
+	sudo('echo 127.0.0.1 localhost $(hostname) > /etc/hosts')
+	sudo('cat /etc/hosts')
+
+	with settings(warn_only=True):
+		sudo('pkill apt-get')
+	sudo('apt-get -q update')
+	sudo('apt-get -q -y install '+' '.join([
 			"python2.7",
 			"python-setuptools",
-			"python2.7-dev",
 			"python-pip",
-			"python-cffi-backend",
-
-			"python-keystoneauth1",
-			"python-babel",
-			"python-novaclient",
-			"python-pika",
-			"python-flask",
-			"python-paramiko",
-
-			"libssl-dev",
+			"python-cryptography",
 			"openntpd",
-			"gcc",
-			"g++",
-			"libffi-dev"
 	]))
 
 # Install control node software
 def install_controller():
-	run('sudo apt-get install -q -y etcd')
+	sudo('apt-get -q -y install etcd')
 
 # Install an already packaged software
-def install_application():
+def install_application(flavor=None):
 	put('cloudtranscoder.tar.gz', '.')
-	run('tar zxf cloudtranscoder.tar.gz');
-	run('sudo python setup.py install');
+	run('tar mzxf cloudtranscoder.tar.gz');
+	if flavor is None:
+		sudo('pip -q install -e .'.format(flavor));
+	else:
+		sudo('pip -q install -e .[{}]'.format(flavor));
 
 # Starts control node system services
 def start_controller_services():
-	run('sudo systemctl stop etcd')
+	sudo('systemctl stop etcd')
 	net=run('ifconfig', quiet=True)
 	addresses = ['http://{}:2379'.format(env.host)];
 	for line in net.split('\n'):
@@ -58,14 +54,14 @@ def start_controller_services():
 	local('cp etcd.env .etcd.env')
 	local('echo ETCD_ADVERTISE_CLIENT_URLS=\\"{}\\" >> .etcd.env'.format(','.join(addresses)))
 	put('.etcd.env', '/etc/default/etcd', use_sudo=True)
-	run('sudo systemctl start etcd')
+	sudo('systemctl start etcd')
 
 # Clears up system data for clean restart
 def clear_etcd_data():
 	with settings(warn_only=True):
-		run('etcdctl rm --recursive /control/alive')
-		run('etcdctl rm --recursive /control/starting')
-		run('etcdctl rm --recursive /log/')
+		run('etcdctl rm --recursive /control/alive', quiet=True)
+		run('etcdctl rm --recursive /control/starting', quiet=True)
+		run('etcdctl rm --recursive /log/', quiet=True)
 
 # Starts the controller node software
 def start_controller(prefix, etcdip=None, foreground=None):

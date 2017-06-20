@@ -78,10 +78,16 @@ setup(
     install_requires=[
             'uuid==1.30',
             'Requests_toolbelt',
-            'Requests',
+            'Requests>=2.10.0',
             'python-swiftclient',
             'python-etcd==0.4.5',
-            'fabric==1.13.2'
+            'fabric==1.13.2',
+            'keystoneauth1==2.20.0',
+            'python-novaclient==8.0.0',
+            'Babel==2.3.4',
+            'pika',
+            'Flask',
+            'Paramiko==2.2.1',
 			],
 
     # List additional groups of dependencies here (e.g. development
@@ -89,13 +95,9 @@ setup(
     # for example:
     # $ pip install -e .[dev,test]
     extras_require={
+				'ctrl': [
+				],
 				'all': [
-					'keystoneauth1==2.20.0',
-          'Babel==2.3.4',
-          'python-novaclient==8.0.0',
-          'pika',
-          'Flask',
-          'Paramiko==2.2.1',
 				]
     },
 
