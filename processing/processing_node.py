@@ -27,6 +27,7 @@ class ProcessingNode:
                               queue='task_queue')
 
         task_queue_channel.start_consuming()
+        print(' [*] Waiting for files to convert. To exit press CTRL+C')
 
 
 
@@ -40,12 +41,13 @@ class ProcessingNode:
 
     # process is called when task is received
     def process(self, ch, method, properties, body):
+        print(" [x] Received file to convert: %r" % body)
+        uuid = body
+
         conf = WaspSwiftConn()
         conf.readConf()
         swift = conf.swiftConn()
 
-        print(" [x] Received file to convert: %r" % body)
-        uuid = body
         #get file from Swift
         os.makedirs(uuid)
         obj_tuple = swift.get_object(uuid, 'in.mp4')
@@ -73,4 +75,3 @@ class ProcessingNode:
 
 if __name__ == '__main__':
     node = ProcessingNode()
-    print(' [*] Waiting for files to convert. To exit press CTRL+C')
