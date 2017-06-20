@@ -7,6 +7,7 @@ import uuid
 import pika
 import sys
 import threading
+from control.openstack import OpenStackVMOperations
 
 lock = threading.Lock()
 
@@ -28,8 +29,15 @@ def index():
 	global status_channel
 	videoFile = request.files['file'];
 	theID = uuid.uuid4()
-	videoFile.save(str(theID) + ".mp4")
+
 	UUIDToBeConverted = str(theID)
+        os = OpenStackVMOperations()
+        os.readConf()
+        swift = os.swiftConn()
+        swift.put_container(UUIDToBeConverted)
+        swift.put_object(UUIDToBeConverted, 'in.mp4',
+            contents= videoFile.read(),
+            content_type='video/mp4')
 	task_queue_channel.basic_publish(exchange='',
                 routing_key='task_queue',
                 body=UUIDToBeConverted,
