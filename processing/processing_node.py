@@ -3,7 +3,7 @@ import pika
 import time
 import os
 import uuid
-from control import openstack.OpenStackVMOperations
+from control import openstack.WaspSwiftConn
 import transcode
 
 
@@ -28,9 +28,6 @@ class ProcessingNode:
 
         task_queue_channel.start_consuming()
 
-        self.osvm = OpenStackVMOperations()
-        self.osvm.readConf()
-        self.swift = osvm.swiftConn()
 
 
     def progress(self, uuid, progress)
@@ -43,6 +40,10 @@ class ProcessingNode:
 
     # process is called when task is received
     def process(self, ch, method, properties, body):
+        conf = WaspSwiftConn()
+        conf.readConf()
+        swift = conf.swiftConn()
+
         print(" [x] Received file to convert: %r" % body)
         uuid = body
         #get file from Swift
@@ -68,6 +69,7 @@ class ProcessingNode:
 
         print(" [x] Deleting input.")
         swift.delete_object(uuid, 'in.mp4')
+        swift.close()
 
 if __name__ == '__main__':
     node = ProcessingNode(uuid.uuid4())
