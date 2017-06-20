@@ -33,7 +33,7 @@ def genWL1(base):
 
 
 if __name__ == '__main__':
-    for i in range(10):
+    for i in range(1):
         t = threading.Thread(target = genWL , args = ["http://127.0.0.1:5000/"])
         t.start()
         st = random.randint(1,10)

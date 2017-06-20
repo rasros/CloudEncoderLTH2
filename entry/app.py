@@ -81,9 +81,12 @@ def status(uuid):
 def download(uuid):
 	resp = Response()
 	resp.headers['Content-disposition'] = 'attachment; filename=' + uuid + '.mp4'
-	theFile = open(uuid + '.mp4','rb')
-	resp.data = theFile.read()
-	index = 0
+        os = WaspSwiftConn()
+        os.readConf()
+        swift = os.swiftConn()
+        obj = swift.get_object(uuid, 'out.mp4')
+	resp.data = obj[1]
+        swift.close()
 	return resp
 
 def callback(ch, method, properties, body):
