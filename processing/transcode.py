@@ -1,14 +1,39 @@
 #!/usr/bin/env python2
 
-import sys,os
+import subprocess
+import time
+import string
+import os
+import re
 
-def encode():
-    vargs = '-ovc x264 -x264encopts crf=20 -vf scale=1920:1080'
-    oargs = '-oac lavc -lavcopts abitrate=256 -srate 48000 -channels 2'
-    infile = 'mencoder/sample-Elysium.2013.2160p.mkv'
-    outfile = 'mencoder/sample-Elysium.2013.2160p.mpg'
-    cmd = 'mencoder ' + infile + ' -o ' + outfile + ' ' + vargs + ' ' + oargs
-    os.system(cmd + ' 1> output.log 2> error.log')
+def do(uuid,callback):
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    p = subprocess.Popen([dir_path + '/transcode.sh', uuid])
+    progress = -1
+    noprogress = 0
+    print(" [x] Starting transcoding of UUID %r" % uuid)
+    while progress < 99 and noprogress < 60:
+        time.sleep(1)
+        try:
+            line = subprocess.check_output(['tail', '-1', dir_path + '/encoding-stout_' + str(uuid) + '.txt'])
+            printable = set(string.ascii_letters+string.digits+':% \n')
+            line = filter(lambda x: x in printable, line)
+            ix = line.rfind('Pos:')
+            pos = line[ix:]
+            m = re.match('Pos: [0-9 ]+s [0-9 ]+f *([0-9]+)%', pos)
+            if m:
+                progress = int(m.group(1).strip())
+                callback(uuid,progress)
+                print(' [x] Converted %d%%.' % progress)
+                noprogress = 0
+            else:
+                noprogress = noprogress+1
+        except subprocess.CalledProcessError:
+            # nothing to do
+            noprogress = noprogress+1
+            pass
 
-if __name__ == '__main__':
-    encode()
+    callback(uuid,100)
+    print(" [x] Awaiting termination of mencoder.")
+    p.wait()
+
