@@ -13,7 +13,7 @@ import signal
 global IMAGE, openstack, keyval, VERSION
 VERSIONS = {
 	'ctrl': '1',
-	'entry': '4'
+	'entry': '21'
 }
 IMAGE='ubuntu 16.04'
 SMALLER='c1m05'
@@ -108,7 +108,8 @@ def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes):
 				# Give it some time to report
 				keyval.setAlive(name, ttl=2*period)
 
-		elif not vm.status == "BUILD":
+		elif not vm.status in ('BUILD', 'HARD_REBOOT'):
+			log("{} is in bad state ({}), shutting it down".format(name, vm.status))
 			keyval.removeStarting(name)
 			openstack.terminateVM(name)
 
@@ -138,15 +139,17 @@ def cleanAndRestartNodes(keyval, openstack, prefix, vms, app):
 	for node in nodes:
 		name = node['name']
 		if name not in vms:
-			log("Non-existing {} node ".format(app, name))
+			log("Non-existing {} node {}".format(app, name))
 			keyval.clearMachine(app, name)
-			nodes.remove(name)
+			nodes.remove(node)
 		elif node['version'] != VERSIONS[app]:
 			if openstack.getVMDetail(name).status == 'ACTIVE':
 				if keyval.getConfig("onversion", default='restart') == 'restart':
 					log("Reboot and reinstall {} {} which is of wrong version ({} != {})".format(app,
 						name, node['version'], VERSIONS[app]))
 					openstack.rebootVM(name, hard=True)
+					while openstack.getVMDetail(name).status == 'ACTIVE':
+						time.sleep(1)
 					keyval.setStarting(name, app, VERSIONS[app])
 				else:
 					log("Shuting down {} {} which is of wrong version ({} != {})".format(app,
