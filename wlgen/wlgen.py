@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 import requests
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 import time
