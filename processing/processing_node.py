@@ -98,6 +98,7 @@ class ProcessingNode:
         print(" [x] Deleting input.")
         swift.delete_object(uuid, 'in.mp4')
         swift.close()
+        self.progress(uuid, 100)
 
 if __name__ == '__main__':
     node = ProcessingNode()

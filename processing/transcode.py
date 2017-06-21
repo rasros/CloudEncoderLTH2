@@ -23,7 +23,7 @@ def do(uuid,callback):
             pos = line[ix:]
             m = re.match('Pos: [0-9 ]+s [0-9 ]+f *([0-9]+)%', pos)
             if m:
-                progress = max(1,int(m.group(1).strip()))
+                progress = min(99,max(1,int(m.group(1).strip())))
                 if progress != preprog:
                     callback(uuid,progress)
                     preprog = progress
