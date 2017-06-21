@@ -35,6 +35,7 @@ status_channel.queue_declare(queue='status_queue', durable=True)
 def index():
 	global status_dict
 	global status_channel
+        global task_queue_channel
 	videoFile = request.files['file'];
 	theID = uuid.uuid4()
 
@@ -119,6 +120,7 @@ status_channel.basic_consume(callback,
 
 def main():
 	global keyval
+        global task_queue_channel
 	keyval = KeyValueStore(host=sys.argv[1])
 	task_queue_connection = pika.BlockingConnection(conPara)
 	task_queue_channel = task_queue_connection.channel()
