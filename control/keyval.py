@@ -80,4 +80,4 @@ class KeyValueStore:
 
 	### Log to the key value store
 	def log(self, name, s):
-		self.append("/log/", "[{:15s}] {}".format(name[:10], s))
+		self.append("/log/", "[{:15s}] {}".format(name[:15], s))

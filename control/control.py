@@ -13,12 +13,13 @@ import signal
 global IMAGE, openstack, keyval, VERSION
 VERSIONS = {
 	'ctrl': '1',
-	'entry': '4'
+	'entry': '25'
 }
 IMAGE='ubuntu 16.04'
 SMALLER='c1m05'
 SMALL='c1m1'
 MEDIUM='c2m2'
+LARGE='c2m4'
 
 global sigint_org, cleankill
 cleankill = False
@@ -108,7 +109,8 @@ def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes):
 				# Give it some time to report
 				keyval.setAlive(name, ttl=2*period)
 
-		elif not vm.status == "BUILD":
+		elif not vm.status in ('BUILD', 'HARD_REBOOT'):
+			log("{} is in bad state ({}), shutting it down".format(name, vm.status))
 			keyval.removeStarting(name)
 			openstack.terminateVM(name)
 
@@ -138,15 +140,17 @@ def cleanAndRestartNodes(keyval, openstack, prefix, vms, app):
 	for node in nodes:
 		name = node['name']
 		if name not in vms:
-			log("Non-existing {} node ".format(app, name))
+			log("Non-existing {} node {}".format(app, name))
 			keyval.clearMachine(app, name)
-			nodes.remove(name)
+			nodes.remove(node)
 		elif node['version'] != VERSIONS[app]:
 			if openstack.getVMDetail(name).status == 'ACTIVE':
 				if keyval.getConfig("onversion", default='restart') == 'restart':
 					log("Reboot and reinstall {} {} which is of wrong version ({} != {})".format(app,
 						name, node['version'], VERSIONS[app]))
 					openstack.rebootVM(name, hard=True)
+					while openstack.getVMDetail(name).status == 'ACTIVE':
+						time.sleep(1)
 					keyval.setStarting(name, app, VERSIONS[app])
 				else:
 					log("Shuting down {} {} which is of wrong version ({} != {})".format(app,
@@ -179,7 +183,7 @@ def runLeader(keyval, openstack, prefix, period):
 	log("Starting nodes: {}".format(','.join(startingNodes)))
 
 	handleNodeCount(keyval, openstack, prefix, period, 'ctrl', ctrlNames, SMALL)
-	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNames, SMALL)
+	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNames, LARGE)
 	handleStartups(keyval, openstack, prefix, period, ctrlNames, entryNames)
 	killBadNodes(keyval, openstack, prefix, ctrlNames+entryNames)
 
