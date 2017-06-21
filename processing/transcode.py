@@ -9,7 +9,7 @@ import re
 def do(uuid,callback):
     dir_path = os.path.dirname(os.path.realpath(__file__))
     p = subprocess.Popen([dir_path + '/transcode.sh', uuid])
-    progress = -1
+    progress = 1
     noprogress = 0
     preprog = -1
     print(" [x] Starting transcoding of UUID %r" % uuid)
@@ -23,7 +23,7 @@ def do(uuid,callback):
             pos = line[ix:]
             m = re.match('Pos: [0-9 ]+s [0-9 ]+f *([0-9]+)%', pos)
             if m:
-                progress = int(m.group(1).strip())
+                progress = max(1,int(m.group(1).strip()))
                 if progress != preprog:
                     callback(uuid,progress)
                     preprog = progress

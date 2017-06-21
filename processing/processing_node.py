@@ -51,6 +51,8 @@ class ProcessingNode:
         print(" [x] Received file to convert: %r" % body)
         uuid = body
 
+        self.progress(uuid, 1)
+
         conf = WaspSwiftConn()
         conf.readConf()
         swift = conf.swiftConn()
@@ -71,6 +73,7 @@ class ProcessingNode:
         except swiftclient.exceptions.ClientException:
             print(" [x] Transcoding aborted, failed to fetch file for %r" % uuid)
             traceback.print_exc()
+            self.progress(uuid, -1)
             ch.basic_ack(delivery_tag = method.delivery_tag)
             return
         
@@ -79,9 +82,16 @@ class ProcessingNode:
         transcode.do(uuid, self.progress)
 
         #send file to Swift
-        with open(uuid + '/out.mp4', 'r') as file:
-            swift.put_object(uuid, 'out.mp4', contents=file.read(), content_type='video/mp4')
-
+        try:
+            with open(uuid + '/out.mp4', 'r') as file:
+                swift.put_object(uuid, 'out.mp4', contents=file.read(), content_type='video/mp4')
+        except swiftclient.exceptions.ClientException:
+            print(" [x] Transcoding aborted, failed to upload file for %r" % uuid)
+            traceback.print_exc()
+            self.progress(uuid, -1)
+            ch.basic_ack(delivery_tag = method.delivery_tag)
+            return
+ 
         ch.basic_ack(delivery_tag = method.delivery_tag) 
         print(" [x] Transcoding done for %r." % uuid)
 
