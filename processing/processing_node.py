@@ -75,7 +75,7 @@ class ProcessingNode:
             ch.basic_ack(delivery_tag = method.delivery_tag)
             return
         
-        self.log(" [x] Downloaded file.")
+        self.log(" [x] Downloaded file, starting transcoding")
 
         transcode.do(uuid, self.progress)
 

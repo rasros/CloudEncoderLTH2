@@ -34,6 +34,10 @@ def install_common():
 def install_controller():
 	sudo('apt-get -q -y install etcd')
 
+# Install worker node software
+def install_worker():
+	sudo('apt-get -q -y install mencoder')
+
 # Install an already packaged software
 def install_application(flavor=None):
 	put('cloudtranscoder.tar.gz', '.')
@@ -127,5 +131,6 @@ def deploy_entry(etcdhost, foreground=None):
 
 def deploy_worker(etcdhost, foreground=None):
 	install_common()
+	install_worker()
 	install_application()
 	start_worker(etcdhost, foreground)
