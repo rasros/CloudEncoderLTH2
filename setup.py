@@ -76,6 +76,7 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
+            'pbr',
             'uuid==1.30',
             'Requests_toolbelt',
             'Requests>=2.10.0',
