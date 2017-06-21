@@ -101,7 +101,7 @@ def status(uuid):
         res = { 'status' : 'QUEUED' , 'progress' : 0 }
     elif(progress == 100):
         res = { 'status' : 'DONE' , 'progress' : 100 }
-        elif(progress < 0):
+    elif(progress < 0):
                 res = { 'status' : 'FAILED', 'progress' : -1}
     else:
         res = { 'status' : 'PROCESSING' , 'progress' : progress }
