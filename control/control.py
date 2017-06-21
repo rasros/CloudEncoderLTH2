@@ -204,6 +204,16 @@ def main():
 		log("Image {} not found".format(IMAGE))
 		sys.exit(1)
 
+
+	# Reading config once stores a default in case the parameter does not exist yet
+	keyval.getConfig("ctrl_retries", default=5)
+	keyval.getConfig("entry_retries", default=5)
+	keyval.getConfig("ctrl_num_nodes", default=0)
+	keyval.getConfig("entry_num_nodes", default=1)
+	keyval.getConfig("ctrl_period_sec", default=5)
+	keyval.getConfig("shutdown", default=0)
+	keyval.getConfig("kill", default=0)
+
 	wakeup = time.time()
 	killed = False
 	while not killed:
