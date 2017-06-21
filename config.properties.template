@@ -2,7 +2,7 @@
 username:{your username}
 password:{your password}
 [openstack]
-projectName:CloudTranscoder-LTH2
+projectName:LTH2
 authUrl:https://xerces.ericsson.net:5000/v3
 keyName:ctapp
 netId:waspcourse
