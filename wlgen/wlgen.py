@@ -6,6 +6,7 @@ import time
 import random
 import threading
 import time
+import sys
 
 def genWL(base):
     while(True):
@@ -19,6 +20,9 @@ def genWL1(base):
     startTime = time.time()
     r = requests.post(base,data = m,
             headers={'Content-Type': m.content_type})
+    if r.status_code == 500:
+        print("500 from server, down?")
+        sys.exit(1)
     file_url = r.headers["Location"]
     r2 = requests.get(file_url + "/status")
     status = r2.json()["status"]
