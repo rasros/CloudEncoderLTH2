@@ -27,7 +27,7 @@ def genWL1(base):
         r2 = requests.get(file_url + "/status")
         status = r2.json()["status"]
 
-    r3 = requests.get(file_url + "/download")
+#    r3 = requests.get(file_url + "/download")
 #    theFile = open('tmp.mp4','wb')
 #    theFile.write(r3.content)
     print(file_url + "," + str(time.time()-startTime) )
