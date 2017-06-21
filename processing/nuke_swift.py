@@ -49,5 +49,7 @@ if __name__ == '__main__':
             for data in swift.get_container(cname)[1]:
                 fname = data['name']
                 swift.delete_object(cname, fname)
+                print("deleted %r", cname + "/" + fname)
             swift.delete_container(cname)
+            print("deleted %r", cname)
         swift.close()
