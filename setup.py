@@ -83,6 +83,7 @@ setup(
             'python-swiftclient',
             'python-etcd==0.4.5',
             'fabric==1.13.2',
+            'python-keystoneclient',
             'keystoneauth1==2.20.0',
             'python-novaclient==8.0.0',
             'Babel==2.3.4',
