@@ -7,6 +7,7 @@ import uuid
 from control.openstack import WaspSwiftConn
 import transcode
 import swiftclient
+import traceback
 
 
 class ProcessingNode:
@@ -68,7 +69,8 @@ class ProcessingNode:
             with open(uuid + '/in.mp4', 'w') as file:
                 file.write(obj_tuple[1])
         except swiftclient.exceptions.ClientException:
-            print(" [x] Transcoding aborted, no file for %r" % uuid)
+            print(" [x] Transcoding aborted, failed to fetch file for %r" % uuid)
+            traceback.print_exc()
             ch.basic_ack(delivery_tag = method.delivery_tag)
             return
         
