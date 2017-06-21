@@ -39,17 +39,15 @@ def query_yes_no(question, default="yes"):
                              "(or 'y' or 'n').\n")
 
 if __name__ == '__main__':
-    if not query_yes_no("This will delete all video data! Are you sure you want to procede?"):
-        return
+    if query_yes_no("This will delete all video data! Are you sure you want to procede?"):
+        conf = WaspSwiftConn()
+        conf.readConf()
+        swift = conf.swiftConn()
 
-    conf = WaspSwiftConn()
-    conf.readConf()
-    swift = conf.swiftConn()
-
-    for container in swift.get_account()[1]:
-        cname = container['name']
-        for data in conn.get_container(cname)[1]:
-            fname = data['name']
-            swift.delete_object(cname, fname)
-        swift.delete_container(cname)
-    swift.close()
+        for container in swift.get_account()[1]:
+            cname = container['name']
+            for data in swift.get_container(cname)[1]:
+                fname = data['name']
+                swift.delete_object(cname, fname)
+            swift.delete_container(cname)
+        swift.close()
