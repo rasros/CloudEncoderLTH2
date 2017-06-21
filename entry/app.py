@@ -59,7 +59,7 @@ def index():
                 ))
 	log("  [x] Sent request for converting %r" % UUIDToBeConverted)
 
-	status_dict[str(theID)] = 1
+	status_dict[str(theID)] = 0
 	resp = Response()
 	resp.headers['Location'] = '/' + str(theID)
 	return resp,201
