@@ -16,25 +16,14 @@ class ProcessingNode:
         conPara = pika.ConnectionParameters('waspmq',5672,'/',
                 credentials=pika.PlainCredentials("test", "test")
                 )
-        task_queue_connection = pika.BlockingConnection(conPara)
-        task_queue_channel = task_queue_connection.channel()
-        task_queue_channel.queue_declare(queue='task_queue', durable=True)
-
-        self.queue_connection = task_queue_connection
-
-
-        #initializing status queue
-        status_connection = pika.BlockingConnection(conPara)
-        self.status_channel = status_connection.channel()
-        self.status_channel.queue_declare(queue='status_queue', durable=True)
-
-        task_queue_channel.basic_qos(prefetch_count=1)
-        task_queue_channel.basic_consume(self.process,
-                              queue='task_queue')
+        self.pika_connection = pika.BlockingConnection(conPara)
+        self.task_channel = self.pika_connection.channel()
+        self.task_channel.queue_declare(queue='task_queue', durable=True)
+        self.task_channel.basic_qos(prefetch_count=1)
+        self.task_channel.basic_consume(self.process, queue='task_queue')
+        self.task_channel.start_consuming()
 
         print(' [*] Waiting for files to convert. To exit press CTRL+C')
-        task_queue_channel.start_consuming()
-
 
 
     def progress(self, uuid, progress):
@@ -42,14 +31,18 @@ class ProcessingNode:
                           routing_key='status_queue',
                           body=uuid + " " + str(progress),
                           properties=pika.BasicProperties(
-                             delivery_mode = 2, # make message persistent
+                             delivery_mode = 1, # make message persistent
                           ))
-        self.queue_connection.process_data_events()
+        #self.queue_connection.process_data_events()
 
     # process is called when task is received
     def process(self, ch, method, properties, body):
         print(" [x] Received file to convert: %r" % body)
         uuid = body
+
+        #initializing status queue
+        self.status_channel = self.pika_connection.channel()
+        self.status_channel.queue_declare(queue='status_queue', durable=False)
 
         self.progress(uuid, 1)
 
@@ -99,6 +92,8 @@ class ProcessingNode:
         swift.delete_object(uuid, 'in.mp4')
         swift.close()
         self.progress(uuid, 100)
+
+        self.status_channel.close()
 
 if __name__ == '__main__':
     node = ProcessingNode()
