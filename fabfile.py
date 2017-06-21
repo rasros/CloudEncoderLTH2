@@ -44,8 +44,9 @@ def install_application(flavor=None):
 		sudo('pip -q install -e .[{}]'.format(flavor));
 
 # Starts control node system services
-def start_controller_services():
-	sudo('systemctl stop etcd')
+def start_controller_services(restart=True):
+	if restart:
+		sudo('systemctl stop etcd')
 	net=run('ifconfig', quiet=True)
 	addresses = ['http://{}:2379'.format(env.host)];
 	for line in net.split('\n'):
@@ -89,12 +90,12 @@ def start_entry(etcdhost, foreground=None):
 		run('ctentry {}'.format(etcdhost))
 
 # Initial control node deploy from user machine
-def deploy(prefix, etcdhost=None, foreground=None):
+def deploy(prefix, etcdhost=None, foreground=None, restart_services='True'):
 	package_software()
 	install_common()
 	install_controller()
 	install_application()
-	start_controller_services()
+	start_controller_services(restart_services=='True')
 	clear_etcd_data()
 	start_controller(prefix, etcdhost, foreground)
 
