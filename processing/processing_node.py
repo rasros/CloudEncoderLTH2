@@ -21,9 +21,8 @@ class ProcessingNode:
         self.task_channel.queue_declare(queue='task_queue', durable=True)
         self.task_channel.basic_qos(prefetch_count=1)
         self.task_channel.basic_consume(self.process, queue='task_queue')
-        self.task_channel.start_consuming()
-
         print(' [*] Waiting for files to convert. To exit press CTRL+C')
+        self.task_channel.start_consuming()
 
 
     def progress(self, uuid, progress):
@@ -31,9 +30,9 @@ class ProcessingNode:
                           routing_key='status_queue',
                           body=uuid + " " + str(progress),
                           properties=pika.BasicProperties(
-                             delivery_mode = 1, # make message persistent
+                             delivery_mode = 2, # make message persistent
                           ))
-        #self.queue_connection.process_data_events()
+        #self.pika_connection.process_data_events()
 
     # process is called when task is received
     def process(self, ch, method, properties, body):
@@ -42,7 +41,7 @@ class ProcessingNode:
 
         #initializing status queue
         self.status_channel = self.pika_connection.channel()
-        self.status_channel.queue_declare(queue='status_queue', durable=False)
+        self.status_channel.queue_declare(queue='status_queue', durable=True)
 
         self.progress(uuid, 1)
 
