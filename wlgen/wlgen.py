@@ -38,7 +38,7 @@ def genWL1(base):
 #    r3 = requests.get(file_url + "/download")
 #    theFile = open('tmp.mp4','wb')
 #    theFile.write(r3.content)
-    print(file_url + "," str(startTime-queueTime) + "," + str(time.time()-startTime))
+    print(file_url + "," + str(startTime-queueTime) + "," + str(time.time()-startTime))
 
 
 
