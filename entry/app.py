@@ -12,6 +12,7 @@ import threading
 from control.openstack import WaspSwiftConn
 from control.keyval import KeyValueStore
 from control.notify import NotifyThread
+import os
 
 lock = threading.Lock()
 
@@ -19,11 +20,12 @@ app = Flask(__name__)
 status_dict = {}
 status_channel = {}
 keyval = None
+myname = "entry"
 
 def log(s):
-	global keyval
+	global keyval,myname
 	print(s)
-	keyval.log('entry', s)
+	keyval.log(myname, s)
 
 #initializing status queue
 conPara = pika.ConnectionParameters('waspmq',5672,'/',
@@ -40,6 +42,8 @@ def index():
         global task_queue_channel
 	videoFile = request.files['file'];
 	theID = uuid.uuid4()
+
+	log("Index request")
 
 	UUIDToBeConverted = str(theID)
         os = WaspSwiftConn()
@@ -123,9 +127,10 @@ status_channel.basic_consume(callback,
                       queue='status_queue')
 
 def main():
-	global keyval
-        global task_queue_channel
+	global keyval,app,task_queue_channel,myname
 	keyval = KeyValueStore(host=sys.argv[1])
+
+	myname = "entry:"+os.uname()[1]
 	task_queue_connection = pika.BlockingConnection(conPara)
 	task_queue_channel = task_queue_connection.channel()
 	task_queue_channel.queue_declare(queue='task_queue', durable=True)
@@ -138,8 +143,12 @@ def main():
 	t = threading.Thread(target = start_consum , args = [])
 	t.start()
 
+	log("Start main")
 	app.run(debug=False,host="0.0.0.0") #DEBUG SHOULD ALWAYS BE FALSE!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 if __name__ == '__main__':
-	main()
+	try:
+		main()
+	except Exception as e:
+		log(e)
 
