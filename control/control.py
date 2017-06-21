@@ -11,7 +11,10 @@ import subprocess
 import signal
 
 global IMAGE, openstack, keyval, VERSION
-VERSION='3'
+VERSIONS = {
+	'ctrl': '1',
+	'entry': '4'
+}
 IMAGE='ubuntu 16.04'
 SMALLER='c1m05'
 SMALL='c1m1'
@@ -48,14 +51,14 @@ def listAllVMs(openstack, prefix):
 def handleNodeCount(keyval, openstack, prefix, period, app, nodes, machineType):
 	''' Generic function to check the node count of a certain application
 	 		and launch new VMs if necessary'''
-	global IMAGE,VERSION
+	global IMAGE,VERSIONS
 	numnodes = int(keyval.getConfig(app+"_num_nodes", default=1))
 
 	# If there aren't enough VMs then boot a new one
 	if len(nodes) < numnodes:
 		name = prefix+str(uuid.uuid4())
 		log("Starting a new "+app+" VM "+name)
-		keyval.setStarting(name, app, VERSION)
+		keyval.setStarting(name, app, VERSIONS[app])
 		vm = openstack.createVM(name, imageName=IMAGE, mtype=machineType)
 	elif len(nodes) > numnodes:
 		log("Num "+app+" VMs is {} > {}, shutdown {}".format(len(nodes), numnodes, nodes[0]))
@@ -97,6 +100,11 @@ def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes):
 			else:
 				keyval.removeStarting(name)
 				log("Node {} moved from starting to running".format(name))
+				if name in entryNodes:
+					ips = openstack.listFloatingIPs()
+					if len(ips) > 0:
+						res = vm.add_floating_ip(ips[0])
+						log("Set floating ip {} {}".format(ips[0], res))
 				# Give it some time to report
 				keyval.setAlive(name, ttl=2*period)
 
@@ -122,41 +130,44 @@ def killBadNodes(keyval, openstack, prefix, allNodes):
 		log("Shutting down {}, it has not notified in a while".format(name))
 		openstack.terminateVM(name)
 
+def cleanAndRestartNodes(keyval, openstack, prefix, vms, app):
+	''' Creates consistency in the running VMs and machine information in the database.
+			Returns the remaining listed VMs.'''
+	global VERSIONS
+	nodes = keyval.getMachines(app)
+	for node in nodes:
+		name = node['name']
+		if name not in vms:
+			log("Non-existing {} node ".format(app, name))
+			keyval.clearMachine(app, name)
+			nodes.remove(name)
+		elif node['version'] != VERSIONS[app]:
+			if openstack.getVMDetail(name).status == 'ACTIVE':
+				if keyval.getConfig("onversion", default='restart') == 'restart':
+					log("Reboot and reinstall {} {} which is of wrong version ({} != {})".format(app,
+						name, node['version'], VERSIONS[app]))
+					openstack.rebootVM(name, hard=True)
+					keyval.setStarting(name, app, VERSIONS[app])
+				else:
+					log("Shuting down {} {} which is of wrong version ({} != {})".format(app,
+						name, node['version'], VERSIONS[app]))
+					openstack.terminateVM(name, hard=True)
+	return nodes
+
 def runLeader(keyval, openstack, prefix, period):
-	global VERSION
 	''' Main function of the control leader '''
 
-	ctrlNodes=keyval.getMachines('ctrl')
-	entryNodes=keyval.getMachines('entry')
+	vms = [ vm.name for vm in listAllVMs(openstack, prefix) ]
+	ctrlNodes=cleanAndRestartNodes(keyval, openstack, prefix, vms, 'ctrl')
+	entryNodes=cleanAndRestartNodes(keyval, openstack, prefix, vms, 'entry')
 	startingNodes=keyval.getStarting()
 	ctrlNames=[ x['name'] for x in ctrlNodes ]
 	entryNames=[ x['name'] for x in entryNodes ]
 	allNodes = ctrlNames+entryNames
-	vms = [ vm.name for vm in listAllVMs(openstack, prefix) ]
 
 	for vm in [ vm for vm in vms if vm not in allNodes ]:
 		log("Shutting down unregistered VM " + vm)
 		openstack.terminateVM(vm)
-
-	for node in ctrlNodes:
-		name = node['name']
-		if name not in vms:
-			log("Non-existing control node " + name)
-			keyval.clearMachine('ctrl', name)
-			ctrlNames.remove(name)
-		elif node['version'] != VERSION:
-			log("Killing {} which is of wrong version".format(name))
-			openstack.terminateVM(name)
-
-	for node in entryNodes:
-		name = node['name']
-		if name not in vms:
-			log("Non-existing entry node " + name)
-			keyval.clearMachine('entry', name)
-			entryNames.remove(name)
-		elif node['version'] != VERSION:
-			log("Killing {} which is of wrong version".format(name))
-			openstack.terminateVM(name)
 
 	for name in [ name for name in startingNodes if name not in vms ]:
 			log("Non-existing starting node " + name)
@@ -213,6 +224,7 @@ def main():
 	keyval.getConfig("ctrl_period_sec", default=5)
 	keyval.getConfig("shutdown", default=0)
 	keyval.getConfig("kill", default=0)
+	keyval.getConfig("onversion", default='restart')
 
 	wakeup = time.time()
 	killed = False

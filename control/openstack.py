@@ -104,12 +104,22 @@ class OpenStackVMOperations:
             self.nova.servers.delete(instance)
             self.out("server %s deleted" % VMName)
 
+    def rebootVM(self,VMName, hard=False):
+        if hard:
+            reboot_type = "hard"
+        else:
+            reboot_type = "soft"
+        instance = self.nova.servers.find(name=VMName)
+        instance.reboot(reboot_type=reboot_type)
+
     def listFloatingIPs(self):
-        ip_list = self.nova.floating_ips.list()
-        for ip in ip_list:
-             self.out("fixed_ip : %s\n" % ip.fixed_ip)
-             self.out("ip : %s" % ip.ip)
-             self.out("instance_id : %s" % ip.instance_id)
+        #ip_list = self.nova.floating_ips.list()
+        #for ip in ip_list:
+        #     self.out("fixed_ip : %s\n" % ip.fixed_ip)
+        #     self.out("ip : %s" % ip.ip)
+        #     self.out("instance_id : %s" % ip.instance_id)
+        #return ip_list
+				return ['129.192.68.159'] # TODO
 
     def listVMs(self):
         vm_list = self.nova.servers.list()
