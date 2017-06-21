@@ -20,7 +20,7 @@ class ProcessingNode:
         task_queue_channel = task_queue_connection.channel()
         task_queue_channel.queue_declare(queue='task_queue', durable=True)
 
-        self.queue_channel = task_queue_channel
+        self.queue_connection = task_queue_connection
 
 
         #initializing status queue
@@ -44,7 +44,7 @@ class ProcessingNode:
                           properties=pika.BasicProperties(
                              delivery_mode = 2, # make message persistent
                           ))
-        self.queue_channel.process_data_events()
+        self.queue_connection.process_data_events()
 
     # process is called when task is received
     def process(self, ch, method, properties, body):
