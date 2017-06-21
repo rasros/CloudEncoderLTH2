@@ -13,7 +13,8 @@ import signal
 global IMAGE, openstack, keyval, VERSION
 VERSIONS = {
 	'ctrl': '1',
-	'entry': '25'
+	'entry': '29',
+	'worker': '6'
 }
 IMAGE='ubuntu 16.04'
 SMALLER='c1m05'
@@ -65,7 +66,7 @@ def handleNodeCount(keyval, openstack, prefix, period, app, nodes, machineType):
 		log("Num "+app+" VMs is {} > {}, shutdown {}".format(len(nodes), numnodes, nodes[0]))
 		openstack.terminateVM(nodes[0])
 
-def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes):
+def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes, workerNodes):
 	''' Goes through all startup VMs and attempts to install and launch their application '''
 
 	# List all VMs which Control node has listed as starting up
@@ -86,6 +87,10 @@ def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes):
 			elif name in entryNodes:
 				process = subprocess.Popen(["fab", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
 					'-H', addr[0], 'deploy_entry:etcdhost={}'.format(myIp())],
+					stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+			elif name in workerNodes:
+				process = subprocess.Popen(["fab", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
+					'-H', addr[0], 'deploy_worker:etcdhost={}'.format(myIp())],
 					stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 			while process.poll() is None:
@@ -164,10 +169,12 @@ def runLeader(keyval, openstack, prefix, period):
 	vms = [ vm.name for vm in listAllVMs(openstack, prefix) ]
 	ctrlNodes=cleanAndRestartNodes(keyval, openstack, prefix, vms, 'ctrl')
 	entryNodes=cleanAndRestartNodes(keyval, openstack, prefix, vms, 'entry')
+	workerNodes=cleanAndRestartNodes(keyval, openstack, prefix, vms, 'worker')
 	startingNodes=keyval.getStarting()
 	ctrlNames=[ x['name'] for x in ctrlNodes ]
 	entryNames=[ x['name'] for x in entryNodes ]
-	allNodes = ctrlNames+entryNames
+	workerNames=[ x['name'] for x in workerNodes ]
+	allNodes = ctrlNames+entryNames+workerNames
 
 	for vm in [ vm for vm in vms if vm not in allNodes ]:
 		log("Shutting down unregistered VM " + vm)
@@ -180,12 +187,20 @@ def runLeader(keyval, openstack, prefix, period):
 
 	log("Control nodes: {}".format(','.join(ctrlNames)))
 	log("Entry nodes: {}".format(','.join(entryNames)))
+	log("Worker nodes: {}".format(','.join(workerNames)))
 	log("Starting nodes: {}".format(','.join(startingNodes)))
 
 	handleNodeCount(keyval, openstack, prefix, period, 'ctrl', ctrlNames, SMALL)
 	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNames, LARGE)
-	handleStartups(keyval, openstack, prefix, period, ctrlNames, entryNames)
-	killBadNodes(keyval, openstack, prefix, ctrlNames+entryNames)
+	handleNodeCount(keyval, openstack, prefix, period, 'worker', workerNames, MEDIUM)
+	handleStartups(keyval, openstack, prefix, period, ctrlNames, entryNames, workerNames)
+	killBadNodes(keyval, openstack, prefix, ctrlNames+entryNames+workerNames)
+
+def checkKill(keyval):
+	if int(keyval.getConfig("kill", default=0)) == 1:
+		keyval.putConfig("kill", 0)
+		return True
+	return False
 
 def main():
 	global IMAGE, cleankill, openstack, keyval
@@ -226,6 +241,7 @@ def main():
 	keyval.getConfig("ctrl_num_nodes", default=0)
 	keyval.getConfig("entry_num_nodes", default=1)
 	keyval.getConfig("ctrl_period_sec", default=5)
+	keyval.getConfig("worker_num_nodes", default=1)
 	keyval.getConfig("shutdown", default=0)
 	keyval.getConfig("kill", default=0)
 	keyval.getConfig("onversion", default='restart')
@@ -241,8 +257,7 @@ def main():
 			break
 		else:
 			try:
-				if int(keyval.getConfig("kill", default=0)) == 1:
-					keyval.putConfig("kill", 0)
+				if checkKill(keyval):
 					killed = True
 					raise Exception("*** Killed")
 					
@@ -260,8 +275,7 @@ def main():
 						wakeup += period
 						sleepTime = wakeup-time.time()
 
-				if int(keyval.getConfig("kill", default=0)) == 1:
-					keyval.putConfig("kill", 0)
+				if checkKill(keyval):
 					killed = True
 					raise Exception("*** Killed")
 

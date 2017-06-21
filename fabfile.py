@@ -84,11 +84,23 @@ def start_controller(prefix, etcdhost=None, foreground=None):
 def start_entry(etcdhost, foreground=None):
 	put('config.properties', '.')
 	sudo('echo 10.0.0.9 waspmq >> /etc/hosts')
+	sudo('echo {} etcdhost >> /etc/hosts'.format(etcdhost))
 	# Run application
 	if foreground is None:
 		run('nohup ctentry {} &>/dev/null &'.format(etcdhost), pty=False)
 	else:
 		run('ctentry {}'.format(etcdhost))
+
+# Start a worker node
+def start_worker(etcdhost, foreground=None):
+	put('config.properties', '.')
+	sudo('echo 10.0.0.9 waspmq >> /etc/hosts')
+	sudo('echo {} etcdhost >> /etc/hosts'.format(etcdhost))
+	# Run application
+	if foreground is None:
+		run('nohup ctworker {} &>/dev/null &'.format(etcdhost), pty=False)
+	else:
+		run('ctworker {}'.format(etcdhost))
 
 # Initial control node deploy from user machine
 def deploy(prefix, etcdhost=None, foreground=None, restart_services='True'):
@@ -112,3 +124,8 @@ def deploy_entry(etcdhost, foreground=None):
 	install_common()
 	install_application()
 	start_entry(etcdhost, foreground)
+
+def deploy_worker(etcdhost, foreground=None):
+	install_common()
+	install_application()
+	start_worker(etcdhost, foreground)

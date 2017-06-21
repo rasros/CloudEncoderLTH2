@@ -122,7 +122,8 @@ setup(
         'console_scripts': [
             'ctclient=client.Client:main',
             'ctcontrol=control.control:main',
-						'ctentry=entry.app:main'
+						'ctentry=entry.app:main',
+						'ctworker=processing.processing_node:main'
         ],
     },
 )
