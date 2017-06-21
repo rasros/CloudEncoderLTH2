@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 #!flask/bin/python
 from flask import Flask
 from flask import request
