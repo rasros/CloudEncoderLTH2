@@ -18,8 +18,8 @@ def install_common():
 	sudo('echo 127.0.0.1 localhost $(hostname) > /etc/hosts')
 	sudo('cat /etc/hosts')
 
-	with settings(warn_only=True):
-		sudo('pkill apt-get')
+#	with settings(warn_only=True):
+#		sudo('pkill apt-get')
 	sudo('dpkg --configure -a')
 	sudo('apt-get -q update')
 	sudo('apt-get -q -y install '+' '.join([
@@ -82,6 +82,7 @@ def start_controller(prefix, etcdhost=None, foreground=None):
 
 # Start an entry node
 def start_entry(etcdhost, foreground=None):
+	put('config.properties', '.')
 	sudo('echo 10.0.0.9 waspmq >> /etc/hosts')
 	# Run application
 	if foreground is None:

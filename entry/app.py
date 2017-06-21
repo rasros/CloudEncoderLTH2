@@ -13,6 +13,7 @@ from control.openstack import WaspSwiftConn
 from control.keyval import KeyValueStore
 from control.notify import NotifyThread
 import os
+import traceback
 
 lock = threading.Lock()
 
@@ -37,36 +38,43 @@ status_channel.queue_declare(queue='status_queue', durable=True)
 
 @app.route('/',methods=['POST'])
 def index():
-	global status_dict
-	global status_channel
-        global task_queue_channel
-	videoFile = request.files['file'];
-	theID = uuid.uuid4()
+	try:
+		global status_dict
+		global status_channel
+		global task_queue_channel
+		videoFile = request.files['file'];
+		theID = uuid.uuid4()
 
-	log("Index request")
+		log("Index request")
 
-	UUIDToBeConverted = str(theID)
-        os = WaspSwiftConn()
-        os.readConf()
-        swift = os.swiftConn()
-        swift.put_container(UUIDToBeConverted)
-        swift.put_object(UUIDToBeConverted, 'in.mp4',
+		UUIDToBeConverted = str(theID)
+		ostack = WaspSwiftConn()
+		ostack.readConf()
+		swift = ostack.swiftConn()
+		swift.put_container(UUIDToBeConverted)
+		swift.put_object(UUIDToBeConverted, 'in.mp4',
             contents= videoFile.read(),
             content_type='video/mp4')
-        swift.close()
-	task_queue_channel.basic_publish(exchange='',
+		swift.close()
+		task_queue_channel.basic_publish(exchange='',
                 routing_key='task_queue',
                 body=UUIDToBeConverted,
                 properties=pika.BasicProperties(
                 delivery_mode = 2,
                 # make message persistent
                 ))
-	log("  [x] Sent request for converting %r" % UUIDToBeConverted)
+		log("  [x] Sent request for converting %r" % UUIDToBeConverted)
 
-	status_dict[str(theID)] = 0
-	resp = Response()
-	resp.headers['Location'] = '/' + str(theID)
-	return resp,201
+		status_dict[str(theID)] = 0
+		resp = Response()
+		resp.headers['Location'] = '/' + str(theID)
+		return resp,201
+	except Exception as e:
+		exc_type, exc_value, exc_traceback = sys.exc_info()
+		log("Exception {}".format(e))
+		for l in traceback.format_exception(exc_type, exc_value, exc_traceback):
+			log("E " + l)
+	return False
 
 @app.route('/<uuid>/status')
 def status(uuid):
@@ -96,27 +104,35 @@ def status(uuid):
 
 @app.route('/<uuid>/download')
 def download(uuid):
-	resp = Response()
-	resp.headers['Content-disposition'] = 'attachment; filename=' + uuid + '.mp4'
-        os = WaspSwiftConn()
-        os.readConf()
-        swift = os.swiftConn()
-        obj = swift.get_object(uuid, 'out.mp4')
-	resp.data = obj[1]
-        swift.close()
-	return resp
+	try:
+		log("Download request")
+		resp = Response()
+		resp.headers['Content-disposition'] = 'attachment; filename=' + uuid + '.mp4'
+		ostack = WaspSwiftConn()
+		ostack.readConf()
+		swift = ostack.swiftConn()
+		obj = swift.get_object(uuid, 'out.mp4')
+		resp.data = obj[1]
+		swift.close()
+		return resp
+	except Exception as e:
+		log(e)
+	return False
 
 def callback(ch, method, properties, body):
+	try:
+		global status_dict
+		global status_channel
 
-	global status_dict
-	global status_channel
-
-	log("  Callback: Received body:" + body)
-	words = body.split()
-	uuid = words[0]
-	percentage = words[1]
-	status_dict[str(uuid)] = int(percentage)
-	ch.basic_ack(delivery_tag = method.delivery_tag) # should be first or last in callback function??????????????????????????
+		log("  Callback: Received body:" + body)
+		words = body.split()
+		uuid = words[0]
+		percentage = words[1]
+		status_dict[str(uuid)] = int(percentage)
+		ch.basic_ack(delivery_tag = method.delivery_tag) # should be first or last in callback function?
+	except Exception as e:
+		log(e)
+	return False
 
 def start_consum():
 	global status_channel
@@ -143,8 +159,7 @@ def main():
 	t = threading.Thread(target = start_consum , args = [])
 	t.start()
 
-	log("Start main")
-	app.run(debug=False,host="0.0.0.0") #DEBUG SHOULD ALWAYS BE FALSE!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	app.run(debug=False,host="0.0.0.0") #DEBUG SHOULD ALWAYS BE FALSE!
 
 if __name__ == '__main__':
 	try:

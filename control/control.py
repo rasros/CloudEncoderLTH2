@@ -13,12 +13,13 @@ import signal
 global IMAGE, openstack, keyval, VERSION
 VERSIONS = {
 	'ctrl': '1',
-	'entry': '21'
+	'entry': '25'
 }
 IMAGE='ubuntu 16.04'
 SMALLER='c1m05'
 SMALL='c1m1'
 MEDIUM='c2m2'
+LARGE='c2m4'
 
 global sigint_org, cleankill
 cleankill = False
@@ -182,7 +183,7 @@ def runLeader(keyval, openstack, prefix, period):
 	log("Starting nodes: {}".format(','.join(startingNodes)))
 
 	handleNodeCount(keyval, openstack, prefix, period, 'ctrl', ctrlNames, SMALL)
-	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNames, SMALL)
+	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNames, LARGE)
 	handleStartups(keyval, openstack, prefix, period, ctrlNames, entryNames)
 	killBadNodes(keyval, openstack, prefix, ctrlNames+entryNames)
 
