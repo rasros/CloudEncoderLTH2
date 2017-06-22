@@ -8,6 +8,7 @@ import threading
 import time
 import sys
 import signal
+import Queue
 
 NUM_THREADS = 10
 MEAN_SLEEP_SEC = 5
@@ -19,6 +20,9 @@ class ThreadInfo:
         self.status = [ "STARTUP" for i in range(numthreads)]
         self.count = [ 0 for i in range(numthreads)]
         self.exiting = False
+        self.sleepQueue = Queue.Queue()
+        self.submittedJobs = 0
+        self.completedJobs = 0
 
     def setStatus(self, idx, status):
         self.mutex.acquire()
@@ -30,8 +34,14 @@ class ThreadInfo:
         self.mutex.acquire()
         cnt = self.count[idx] + 1
         self.count[idx] = cnt
+        self.completedJobs = self.completedJobs + 1
         self.mutex.release()
         return cnt
+
+    def incSubmitted(self):
+        self.mutex.acquire()
+        self.submittedJobs = self.submittedJobs + 1
+        self.mutex.release()
 
     def getStatus(self, idx, status):
         self.mutex.acquire()
@@ -40,12 +50,19 @@ class ThreadInfo:
         return status
 
     def pleaseDie(self, signum, frame):
-        print("Please die")
+        self.sleepQueue.put(None)
         self.mutex.acquire()
         self.exiting = True
         self.status = [ "CLOSING" for i in range(self.numthreads) ]
         self.mutex.release()
         self.printInfo()
+
+    def printStats(self):
+        info.mutex.acquire()
+        sys.stderr.write(str(t.time()) + "," +
+                str(self.submittedJobs - self.completedJobs) + "," +
+                str(self.completedJobs) + "\n")
+        info.mutex.release()
 
     def printInfo(self):
         info.mutex.acquire()
@@ -57,6 +74,15 @@ class ThreadInfo:
         print(str)
         info.mutex.release()
 
+    def sleep(self,t):
+        '''
+        Interruptable sleep
+        '''
+        try:
+            self.sleepQueue.get(timeout=t)
+        except Queue.Empty:
+            pass
+
 
 info = ThreadInfo(NUM_THREADS)
 
@@ -64,14 +90,15 @@ def genWL(base, tidx):
     global info
     
     st = random.expovariate(MEAN_SLEEP_SEC)
-    time.sleep(st)
+    info.sleep(st)
     while (not info.exiting):
-          genWL1(base, tidx, info)
-          st = random.randint(8,10)
-          time.sleep(st)
+        genWL1(base, tidx, info)
+        st = random.expovariate(MEAN_SLEEP_SEC)
+        info.sleep(st)
 
 def genWL1(base, tidx, info):
     info.setStatus(tidx, "UPLOADING")
+    info.incSubmitted()
 
     m = MultipartEncoder(fields={ 'file' :
         ('filename', open('video.mp4', 'rb'), 'video/mp4')})
@@ -87,20 +114,14 @@ def genWL1(base, tidx, info):
     
     info.setStatus(tidx, r2.json()["status"])
     while ( info.setStatus(tidx, r2.json()["status"]) == "QUEUED" ):
-        try:
-            time.sleep(1)
-        except Exception:
-            pass
+        info.sleep(1)
         if info.exiting:
             return
         r2 = requests.get(file_url + "/status")
 
     startTime = time.time()
     while ( info.setStatus(tidx, r2.json()["status"]) != "DONE" ):
-        try:
-            time.sleep(1)
-        except Exception:
-            pass
+        info.sleep(1)
         if info.exiting:
             return
         r2 = requests.get(file_url + "/status")
@@ -116,12 +137,12 @@ def genWL1(base, tidx, info):
 
 
 if __name__ == '__main__':
-    print("Workload Generator started with %d threads and %d mean sleep time." \
-            % (NUM_THREADS, MEAN_SLEEP_SEC))
-    print("CSV is printed to stderr and info to stdout.")
-    print("Press CTRL+C to quit.")
+    #print("Workload Generator started with %d threads and %d mean sleep time." \
+            #% (NUM_THREADS, MEAN_SLEEP_SEC))
+    #print("CSV is printed to stderr and info to stdout.")
+    #print("Press CTRL+C to quit.")
 
-    sys.stderr.write("URL,QueueTime,ProcessingTime,TotalTime\n")
+    sys.stderr.write("Time,#InQueue,#Completed")
 
     signal.signal(signal.SIGINT, info.pleaseDie)
 
@@ -132,4 +153,4 @@ if __name__ == '__main__':
 
     while not info.exiting:
         info.printInfo()
-        time.sleep(1)
+        info.sleep(1)
