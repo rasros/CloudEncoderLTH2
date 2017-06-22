@@ -16,7 +16,7 @@ global IMAGE, openstack, keyval, VERSION
 VERSIONS = {
 	'ctrl': '1',
 	'entry': '29',
-	'worker': '6'
+	'worker': '7'
 }
 IMAGE='ubuntu 16.04'
 SMALLER='c1m05'
@@ -63,7 +63,7 @@ def listAllVMs(openstack, prefix):
 	''' List all VMs using the user prefix '''
 	return [vm for vm in openstack.listVMs() if vm.name.startswith(prefix)]
 
-def handleNodeCount(keyval, openstack, prefix, period, app, nodes, machineType):
+def handleNodeCount(keyval, openstack, prefix, period, app, nodes, machineType, nostart=False):
 	''' Generic function to check the node count of a certain application
 	 		and launch new VMs if necessary'''
 	global IMAGE,VERSIONS
@@ -73,14 +73,21 @@ def handleNodeCount(keyval, openstack, prefix, period, app, nodes, machineType):
 		return
 
 	# If there aren't enough VMs then boot a new one
-	if len(nodes) < numnodes:
+	if not nostart and len(nodes) < numnodes:
 		name = prefix+str(uuid.uuid4())
-		log("Starting a new "+app+" VM "+name)
+		log2("Starting a new "+app+" VM "+name)
 		keyval.setStarting(name, app, VERSIONS[app])
 		vm = openstack.createVM(name, imageName=IMAGE, mtype=machineType)
 	elif len(nodes) > numnodes:
-		log("Num "+app+" VMs is {} > {}, shutdown {}".format(len(nodes), numnodes, nodes[0]))
-		openstack.terminateVM(nodes[0])
+		if app == 'worker':
+			for name in nodes:
+				if keyval.getWorkerFlag(name) == 0:
+					log2("Shutting down worker {}".format(name))
+					openstack.terminateVM(name)
+					break
+		else:
+			log("Num "+app+" VMs is {} > {}, shutdown {}".format(len(nodes), numnodes, nodes[0]))
+			openstack.terminateVM(nodes[0])
 
 def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes, workerNodes):
 	''' Goes through all startup VMs and attempts to install and launch their application '''
@@ -235,24 +242,27 @@ def runLeader(keyval, openstack, prefix, period):
 
 	try:
 		numWorkers = len(workerNames)
-		queued = float(getQueuedSize())
-		ratio = queued/numWorkers
-		log2("Job queue size: {}, ratio: {}".format(queued, ratio))
-		if ratio > 1:
-			keyval.putConfig("worker_num_nodes", min(8, numWorkers+1))
-		
+		if numWorkers != 0:
+			queued = float(getQueuedSize())
+			ratio = queued/numWorkers
+			log2("Job queue size: {}, ratio: {}".format(queued, ratio))
+			if ratio > 1:
+				keyval.putConfig("worker_num_nodes", min(8, numWorkers+1))
+			elif ratio == 0:
+				keyval.putConfig("worker_num_nodes", max(1, numWorkers-1))
+
 	except Exception as e:
 		exc_type, exc_value, exc_traceback = sys.exc_info()
 		logexception(exc_type, exc_value, exc_traceback)
 
 	handleNodeCount(keyval, openstack, prefix, period, 'ctrl', ctrlNames, SMALL)
 	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNames, LARGE)
-	workerStarting= False
+
+	nostart = False
 	for worker in workerNames:
 		if worker in startingNodes:
-			workerStarting= True
-	if not workerStarting:
-		handleNodeCount(keyval, openstack, prefix, period, 'worker', workerNames, MEDIUM)
+			nostart = True 
+	handleNodeCount(keyval, openstack, prefix, period, 'worker', workerNames, MEDIUM, nostart=nostart)
 
 	handleStartups(keyval, openstack, prefix, period, ctrlNames, entryNames, workerNames)
 	killBadNodes(keyval, openstack, prefix, ctrlNames+entryNames+workerNames)

@@ -14,7 +14,7 @@ from control.notify import NotifyThread
 class ProcessingNode:
     def __init__(self):
         #initializing task queue
-        self.name = "work:"+os.uname()[1]
+        self.name = os.uname()[1]
         self.kv = KeyValueStore(host='etcdhost')
         conPara = pika.ConnectionParameters('waspmq',5672,'/',
                 credentials=pika.PlainCredentials("test", "test")
@@ -32,7 +32,7 @@ class ProcessingNode:
 
     def log(self, s):
         print(s)
-        self.kv.log(self.name, s)
+        self.kv.log("work:"+self.name, s)
 
     def progress(self, uuid, progress):
         self.status_channel.basic_publish(exchange='',

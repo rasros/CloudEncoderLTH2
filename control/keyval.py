@@ -14,6 +14,14 @@ class KeyValueStore:
 	def append(self, key, value):
 		self.etcd.write(key, value, append=True)
 
+	def getWorkerFlag(self, name):
+		try:
+			res = self.etcd.read("/worker/"+name)
+			return int(res.value)
+		except etcd.EtcdKeyNotFound as e:
+			pass
+		return 0
+
 	### Shared config
 
 	def getConfig(self, key, default=None, timeout=1):
