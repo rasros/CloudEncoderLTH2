@@ -7,6 +7,7 @@ import random
 import threading
 import time
 import sys
+import signal
 
 NUM_THREADS = 10
 MEAN_SLEEP_SEC = 5
@@ -38,7 +39,7 @@ class ThreadInfo:
         self.mutex.release()
         return status
 
-    def pleaseDie(self):
+    def pleaseDie(self, signum, frame):
         print("Please die")
         self.mutex.acquire()
         self.exiting = True
@@ -73,7 +74,7 @@ def genWL1(base, tidx, info):
     info.setStatus(tidx, "UPLOADING")
 
     m = MultipartEncoder(fields={ 'file' :
-        ('filename', open('video2.mp4', 'rb'), 'video/mp4')})
+        ('filename', open('video.mp4', 'rb'), 'video/mp4')})
     queueTime = time.time()
     r = requests.post(base,data = m,
             headers={'Content-Type': m.content_type})
@@ -116,7 +117,7 @@ def genWL1(base, tidx, info):
 
 if __name__ == '__main__':
     print("Workload Generator started with %d threads and %d mean sleep time." \
-            % NUM_THREADS % MEAN_SLEEP_SEC)
+            % (NUM_THREADS, MEAN_SLEEP_SEC))
     print("CSV is printed to stderr and info to stdout.")
     print("Press CTRL+C to quit.")
 
