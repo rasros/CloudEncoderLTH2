@@ -70,7 +70,7 @@ class ThreadInfo:
         for i in range(NUM_THREADS):
             str += "\033[95mThread {} {:15s} Done: {:3d}\033[0m\n".format(
                     i, info.status[i], info.count[1])
-            str += "\033[{}F".format(NUM_THREADS+1)
+        str += "\033[{}F".format(NUM_THREADS+1)
         print(str)
         info.mutex.release()
 
