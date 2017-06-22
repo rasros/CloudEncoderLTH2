@@ -1,0 +1,27 @@
+14:35 started test with 2 clients
+14:39 killed bad node
+14:40 added 2 clients
+14:49 3 working nodes
+14:51 added 4 clients
+15:00 equilibrium reached with 5 workers
+15:01 killed all workers, accidentally killed workload generators and control as well
+15:04 restarted controller and set clients to 8 (8 extra jobs in system)
+15:10 coffee break
+15:39 returned from coffee break, found one zombie worker and broken connection between control and rabbit
+      restarted worker and control
+15:39 equilibrium of 4 workers
+15:40 killed 2 workers
+15:41 started 1 worker (15:47 done)
+15:47 started 1 worker (number 4) (15:52 done)
+15:53 started 1 worker
+15:53 scale down to 4 clients
+15:55 shutting down worker (recently started one)
+15:56 shutting down worker (bad state)
+15:57 down to 2 workers, but lingering connections to rabbit
+15:58 down to 1 worker
+15:59 restarted workload generators (forcing restart)
+16:00 started worker
+16:04 started worker
+16:07 stopped test, 400 video snippets converted
+16:08 queue empty
+16:09 one worker remaining
