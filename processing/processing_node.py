@@ -26,6 +26,7 @@ class ProcessingNode:
         self.task_channel.basic_consume(self.process, queue='task_queue')
 
     def start_consuming(self):
+        self.kv.write("/worker/"+self.name, 0)
         self.log('Waiting for files to convert')
         self.task_channel.start_consuming()
 
@@ -47,57 +48,50 @@ class ProcessingNode:
         self.log("Received file to convert: %r" % body)
         uuid = body
 
-        #initializing status queue
-        self.status_channel = self.pika_connection.channel()
-        self.status_channel.queue_declare(queue='status_queue', durable=True)
-
-        self.progress(uuid, 1)
-
-        conf = WaspSwiftConn()
-        conf.readConf()
-        swift = conf.swiftConn()
-
-        #get file from Swift
         try:
+            #check if no jobs
+
+            self.kv.write("/worker/"+self.name, 1)
+
+            #initializing status queue
+            self.status_channel = self.pika_connection.channel()
+            self.status_channel.queue_declare(queue='status_queue', durable=True)
+
+            self.progress(uuid, 1)
+
+            conf = WaspSwiftConn()
+            conf.readConf()
+            swift = conf.swiftConn()
+
             os.makedirs(uuid)
-        except OSError as exc:
-            if exc.errno == errno.EEXIST and os.path.isdir(uuid):
-                pass
-            else:
-                raise
 
-        try:
+            #get file from Swift
             obj_tuple = swift.get_object(uuid, 'in.mp4')
             with open(uuid + '/in.mp4', 'w') as file:
                 file.write(obj_tuple[1])
-        except swiftclient.exceptions.ClientException:
-            self.log("Transcoding aborted, failed to fetch file for %r" % uuid)
-            traceback.print_exc()
-            self.progress(uuid, -1)
-            ch.basic_ack(delivery_tag = method.delivery_tag)
-            return
         
-        self.log("Downloaded file, starting transcoding")
+            self.log("Downloaded file, starting transcoding")
 
-        transcode.do(uuid, self.progress)
+            transcode.do(uuid, self.progress)
 
-        #send file to Swift
-        try:
+            #send file to Swift
             with open(uuid + '/out.mp4', 'r') as file:
                 swift.put_object(uuid, 'out.mp4', contents=file.read(), content_type='video/mp4')
-        except swiftclient.exceptions.ClientException:
-            self.log("Transcoding aborted, failed to upload file for %r" % uuid)
+ 
+            ch.basic_ack(delivery_tag = method.delivery_tag) 
+            swift.delete_object(uuid, 'in.mp4')
+            swift.close()
+            self.progress(uuid, 100)
+            self.status_channel.close()
+            self.log("Transcoding done for %r." % uuid)
+            self.kv.write("/worker/"+self.name, 0)
+        except:
+            self.log("Transcoding aborted, failed job %r" % uuid)
             traceback.print_exc()
             self.progress(uuid, -1)
             ch.basic_ack(delivery_tag = method.delivery_tag)
-            return
- 
-        ch.basic_ack(delivery_tag = method.delivery_tag) 
-        swift.delete_object(uuid, 'in.mp4')
-        swift.close()
-        self.progress(uuid, 100)
-        self.status_channel.close()
-        self.log("Transcoding done for %r." % uuid)
+            self.task_channel.stop_consuming()
+
 
 def main():
 	notifyThread = NotifyThread(host='etcdhost')
