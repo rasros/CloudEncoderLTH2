@@ -9,8 +9,10 @@ import time
 import sys
 import signal
 import Queue
+from control.keyval import KeyValueStore
 
-NUM_THREADS = 10
+
+NUM_THREADS = 2
 MEAN_SLEEP_SEC = 1.0/3.0
 
 class ThreadInfo:
@@ -25,6 +27,7 @@ class ThreadInfo:
         self.completedJobs = 0
         self.failedJobs = 0
         self.prevStats = 0
+        self.kv = KeyValueStore(host='ct.thefuturenow.se')
 
     def setStatus(self, idx, status):
         self.mutex.acquire()
@@ -63,13 +66,15 @@ class ThreadInfo:
         self.printInfo()
 
     def printStats(self):
+        workers = len(self.kv.getMachines('worker'))
         info.mutex.acquire()
-        if self.prevStats !=  self.submittedJobs + self.completedJobs:
+        if self.prevStats !=  self.submittedJobs + self.completedJobs + workers:
             sys.stderr.write(str(int(time.time())) + "," +
                     str(self.submittedJobs - self.completedJobs) + "," +
                     str(self.completedJobs) + "," +
-                    str(self.failedJobs) + "\n")
-        self.prevStats = self.submittedJobs + self.completedJobs
+                    str(self.failedJobs) + "," +
+                    str(workers) + "\n")
+        self.prevStats = self.submittedJobs + self.completedJobs + workers
         info.mutex.release()
 
     def printInfo(self):
@@ -77,7 +82,7 @@ class ThreadInfo:
         str = ""
         for i in range(NUM_THREADS):
             str += "\033[95mThread {} {:15s} Done: {:3d}\033[0m\n".format(
-                    i, info.status[i], info.count[1])
+                    i, info.status[i], info.count[i])
         str += "\033[{}F".format(NUM_THREADS+1)
         print(str)
         info.mutex.release()
@@ -152,7 +157,7 @@ if __name__ == '__main__':
     print("CSV is printed to stderr and info to stdout.")
     print("Press CTRL+C to quit.")
 
-    sys.stderr.write("Time,#InQueue,#Completed,#Failed\n")
+    sys.stderr.write("Time,#InQueue,#Completed,#Failed,#Workers\n")
 
     signal.signal(signal.SIGINT, info.pleaseDie)
 
