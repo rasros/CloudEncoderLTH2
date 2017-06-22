@@ -115,8 +115,7 @@ def genWL1(base, tidx, info):
 
 
 if __name__ == '__main__':
-    global info
-    print("Workload Generator started with %d threads and %d mean sleep time." 
+    print("Workload Generator started with %d threads and %d mean sleep time." \
             % NUM_THREADS % MEAN_SLEEP_SEC)
     print("CSV is printed to stderr and info to stdout.")
     print("Press CTRL+C to quit.")
