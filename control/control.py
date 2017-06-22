@@ -104,15 +104,15 @@ def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes, wor
 
 			log2("Attempting to configure {}, attempts left: {}".format(vm.name, attempts))
 			if name in ctrlNodes:
-				process = subprocess.Popen(["fab", "-t", "10", "-T", "60", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
+				process = subprocess.Popen(["fab", "-p", "password", "-t", "10", "-T", "60", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
 					'-H', addr[0], 'deploy_control:prefix={},etcdhost={}'.format(prefix, myIp())],
 					stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 			elif name in entryNodes:
-				process = subprocess.Popen(["fab", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
+				process = subprocess.Popen(["fab", "-p", "password", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
 					'-H', addr[0], 'deploy_entry:etcdhost={}'.format(myIp())],
 					stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 			elif name in workerNodes:
-				process = subprocess.Popen(["fab", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
+				process = subprocess.Popen(["fab", "-p", "password", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
 					'-H', addr[0], 'deploy_worker:etcdhost={}'.format(myIp())],
 					stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
