@@ -23,7 +23,8 @@ class ThreadInfo:
         self.sleepQueue = Queue.Queue()
         self.submittedJobs = 0
         self.completedJobs = 0
-        self.prevstats = 0
+        self.failedJobs = 0
+        self.prevStats = 0
 
     def setStatus(self, idx, status):
         self.mutex.acquire()
@@ -31,11 +32,13 @@ class ThreadInfo:
         self.mutex.release()
         return status
 
-    def incCount(self, idx):
+    def incCount(self, idx, status):
         self.mutex.acquire()
         cnt = self.count[idx] + 1
         self.count[idx] = cnt
         self.completedJobs = self.completedJobs + 1
+        if status == 'FAILED':
+            self.failedJobs = self.failedJobs + 1
         self.mutex.release()
         return cnt
 
@@ -61,11 +64,11 @@ class ThreadInfo:
 
     def printStats(self):
         info.mutex.acquire()
-        if self.prevstats !=  self.submittedJobs + self.completedJobs:
+        if self.prevStats !=  self.submittedJobs + self.completedJobs:
             sys.stderr.write(str(int(time.time())) + "," +
                     str(self.submittedJobs - self.completedJobs) + "," +
                     str(self.completedJobs) + "\n")
-        self.prevstats = self.submittedJobs + self.completedJobs
+        self.prevStats = self.submittedJobs + self.completedJobs
         info.mutex.release()
 
     def printInfo(self):
@@ -140,7 +143,7 @@ def genWL1(base, tidx, info):
             #str(t-startTime) + "," +
             #str(t-queueTime) + "\n")
     #info.mutex.release()
-    info.incCount(tidx)
+    info.incCount(tidx,status)
 
 
 if __name__ == '__main__':
@@ -149,7 +152,7 @@ if __name__ == '__main__':
     print("CSV is printed to stderr and info to stdout.")
     print("Press CTRL+C to quit.")
 
-    sys.stderr.write("Time,#InQueue,#Completed\n")
+    sys.stderr.write("Time,#InQueue,#Completed,#Failed\n")
 
     signal.signal(signal.SIGINT, info.pleaseDie)
 
