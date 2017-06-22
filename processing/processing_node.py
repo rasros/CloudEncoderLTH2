@@ -24,6 +24,8 @@ class ProcessingNode:
         self.task_channel.queue_declare(queue='task_queue', durable=True)
         self.task_channel.basic_qos(prefetch_count=1)
         self.task_channel.basic_consume(self.process, queue='task_queue')
+
+    def start_consuming(self):
         self.log(' [*] Waiting for files to convert. To exit press CTRL+C')
         self.task_channel.start_consuming()
 
@@ -107,3 +109,4 @@ def main():
 
 if __name__ == '__main__':
     node = ProcessingNode()
+    node.start_consuming()
