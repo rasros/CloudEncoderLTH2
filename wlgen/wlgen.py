@@ -67,7 +67,8 @@ class ThreadInfo:
         if self.prevStats !=  self.submittedJobs + self.completedJobs:
             sys.stderr.write(str(int(time.time())) + "," +
                     str(self.submittedJobs - self.completedJobs) + "," +
-                    str(self.completedJobs) + "\n")
+                    str(self.completedJobs) + "," +
+                    str(self.failedJobs) + "\n")
         self.prevStats = self.submittedJobs + self.completedJobs
         info.mutex.release()
 
@@ -115,13 +116,12 @@ def genWL1(base, tidx, info):
         info.setStatus(tids, "SERVER ERROR")
         info.exiting = True
         return
-    info.incSubmitted()
     file_url = r.headers["Location"]
     r2 = requests.get(file_url + "/status")
     
-    status = "QUEUED"
-    info.setStatus(tidx, r2.json()["status"])
-    while ( "status" == "QUEUED" ):
+    status = info.setStatus(tidx, r2.json()["status"])
+    info.incSubmitted()
+    while ( status == "QUEUED" ):
         info.sleep(1)
         if info.exiting:
             return
@@ -148,7 +148,7 @@ def genWL1(base, tidx, info):
 
 if __name__ == '__main__':
     print("Workload Generator started with %d threads and %d mean sleep time." \
-            % (NUM_THREADS, MEAN_SLEEP_SEC))
+            % (NUM_THREADS, 1.0/MEAN_SLEEP_SEC))
     print("CSV is printed to stderr and info to stdout.")
     print("Press CTRL+C to quit.")
 
