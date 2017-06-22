@@ -97,7 +97,7 @@ def main():
 	notifyThread = NotifyThread(host='etcdhost')
 	notifyThread.start()
 	node = ProcessingNode()
+	node.start_consuming()
 
 if __name__ == '__main__':
-    node = ProcessingNode()
-    node.start_consuming()
+	main()

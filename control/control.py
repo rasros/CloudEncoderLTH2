@@ -248,7 +248,7 @@ def runLeader(keyval, openstack, prefix, period):
 	handleNodeCount(keyval, openstack, prefix, period, 'ctrl', ctrlNames, SMALL)
 	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNames, LARGE)
 	workerStarting= False
-	for worker in wokerNames:
+	for worker in workerNames:
 		if worker in startingNodes:
 			workerStarting= True
 	if not workerStarting:

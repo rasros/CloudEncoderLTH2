@@ -138,3 +138,9 @@ def deploy_worker(etcdhost, foreground=None):
 	install_worker()
 	install_application()
 	start_worker(etcdhost, foreground)
+
+def debug_worker(prefix, etcdhost=None, foreground=None, restart_services='True'):
+	package_software()
+	if etcdhost is None:
+		etcdhost = "127.0.0.1"
+	deploy_worker(etcdhost, foreground=foreground)
