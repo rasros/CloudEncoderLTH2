@@ -31,7 +31,7 @@ def genWL1(base, id):
     r = requests.post(base,data = m,
             headers={'Content-Type': m.content_type})
     if r.status_code == 500:
-        print("500 from server, down?")
+        print("500 from server")
         sys.exit(1)
     file_url = r.headers["Location"]
     r2 = requests.get(file_url + "/status")
@@ -49,12 +49,16 @@ def genWL1(base, id):
 #    r3 = requests.get(file_url + "/download")
 #    theFile = open('tmp.mp4','wb')
 #    theFile.write(r3.content)
-    print(file_url + "," + str(startTime-queueTime) + "," + str(time.time()-startTime))
+    t = time.time()
+    print(file_url + "," 
+            + str(startTime-queueTime) + ","
+            + str(t-startTime) + ","
+            + str(t-queueTime))
 
 
 
 if __name__ == '__main__':
-    print("URL,QueueTime,ProcessingTime")
+    print("URL,QueueTime,ProcessingTime,TotalTime")
     for i in range(10):
         t = threading.Thread(target = genWL , args = ["http://transcode.thefuturenow.se:5000/", i])
         t.start()
