@@ -9,6 +9,7 @@ import time
 import uuid
 import subprocess
 import signal
+import pika
 
 global IMAGE, openstack, keyval, VERSION
 VERSIONS = {
@@ -163,6 +164,25 @@ def cleanAndRestartNodes(keyval, openstack, prefix, vms, app):
 					openstack.terminateVM(name, hard=True)
 	return nodes
 
+def calcNbrWorker(currentNbr):
+	pika_conn_params = pika.ConnectionParameters(
+	host='waspmq', port=5672,
+	credentials=pika.credentials.PlainCredentials('test', 'test'),
+	)
+	connection = pika.BlockingConnection(pika_conn_params)
+	channel = connection.channel()
+	queue = channel.queue_declare(
+		queue="task_queue", durable=True,
+		exclusive=False, auto_delete=False
+	)
+        num_in_queue = queue.method.message_count
+        if(num_in_queue > 2 * currentNbr):
+            return num_in_queue + 1
+        if(num_in_queuq < currentNbr/2):
+            return num_in_queue - 1
+        return num_in_queue
+
+
 def runLeader(keyval, openstack, prefix, period):
 	''' Main function of the control leader '''
 
@@ -175,6 +195,8 @@ def runLeader(keyval, openstack, prefix, period):
 	entryNames=[ x['name'] for x in entryNodes ]
 	workerNames=[ x['name'] for x in workerNodes ]
 	allNodes = ctrlNames+entryNames+workerNames
+
+
 
 	for vm in [ vm for vm in vms if vm not in allNodes ]:
 		log("Shutting down unregistered VM " + vm)
@@ -189,6 +211,7 @@ def runLeader(keyval, openstack, prefix, period):
 	log("Entry nodes: {}".format(','.join(entryNames)))
 	log("Worker nodes: {}".format(','.join(workerNames)))
 	log("Starting nodes: {}".format(','.join(startingNodes)))
+
 
 	handleNodeCount(keyval, openstack, prefix, period, 'ctrl', ctrlNames, SMALL)
 	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNames, LARGE)
@@ -260,7 +283,7 @@ def main():
 				if checkKill(keyval):
 					killed = True
 					raise Exception("*** Killed")
-					
+
 				if int(keyval.getConfig("shutdown", default=0)) == 1:
 					keyval.putConfig("shutdown", 0)
 					log("*** Shutting down")
