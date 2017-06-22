@@ -10,6 +10,7 @@ import uuid
 import subprocess
 import signal
 import pika
+import traceback
 
 global IMAGE, openstack, keyval, VERSION
 VERSIONS = {
@@ -37,6 +38,17 @@ def log(s):
 	print(s)
 	keyval.log(myName(), s)
 
+def log2(s):
+	global keyval
+	print(s)
+	keyval.log(myName(), s)
+	keyval.log(myName(), s, logpath="/ctrlog/")
+
+def logexception(exc_type, exc_value, exc_traceback):
+	log("Exception:")
+	for l in traceback.format_exception(exc_type, exc_value, exc_traceback):
+		log("E " + l.rstrip())
+
 def myName():
 	return os.uname()[1]
 
@@ -55,7 +67,10 @@ def handleNodeCount(keyval, openstack, prefix, period, app, nodes, machineType):
 	''' Generic function to check the node count of a certain application
 	 		and launch new VMs if necessary'''
 	global IMAGE,VERSIONS
-	numnodes = int(keyval.getConfig(app+"_num_nodes", default=1))
+	numnodes = int(keyval.getConfig(app+"_num_nodes", default=None))
+
+	if numnodes is None:
+		return
 
 	# If there aren't enough VMs then boot a new one
 	if len(nodes) < numnodes:
@@ -80,7 +95,7 @@ def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes, wor
 			attempts = int(keyval.etcd.read('/control/starting/'+name).value)
 			addr = vm.networks['waspcourse']
 
-			log("Attempting to configure {}, attempts left: {}".format(vm.name, attempts))
+			log2("Attempting to configure {}, attempts left: {}".format(vm.name, attempts))
 			if name in ctrlNodes:
 				process = subprocess.Popen(["fab", "-t", "10", "-T", "60", "-D", "-i", "ctapp.pem", "-u", "ubuntu",
 					'-H', addr[0], 'deploy_control:prefix={},etcdhost={}'.format(prefix, myIp())],
@@ -114,6 +129,7 @@ def handleStartups(keyval, openstack, prefix, period, ctrlNodes, entryNodes, wor
 						log("Set floating ip {} {}".format(ips[0], res))
 				# Give it some time to report
 				keyval.setAlive(name, ttl=2*period)
+				break
 
 		elif not vm.status in ('BUILD', 'HARD_REBOOT'):
 			log("{} is in bad state ({}), shutting it down".format(name, vm.status))
@@ -165,23 +181,26 @@ def cleanAndRestartNodes(keyval, openstack, prefix, vms, app):
 	return nodes
 
 def calcNbrWorker(currentNbr):
-	pika_conn_params = pika.ConnectionParameters(
-	host='waspmq', port=5672,
-	credentials=pika.credentials.PlainCredentials('test', 'test'),
-	)
-	connection = pika.BlockingConnection(pika_conn_params)
-	channel = connection.channel()
-	queue = channel.queue_declare(
-		queue="task_queue", durable=True,
-		exclusive=False, auto_delete=False
-	)
-        num_in_queue = queue.method.message_count
-        if(num_in_queue > 2 * currentNbr):
-            return num_in_queue + 1
-        if(num_in_queuq < currentNbr/2):
-            return num_in_queue - 1
-        return num_in_queue
+  pika_conn_params = pika.ConnectionParameters(host='waspmq', port=5672,credentials=pika.credentials.PlainCredentials('test', 'test'),)
+  connection = pika.BlockingConnection(pika_conn_params)
+  channel = connection.channel()
+  queue = channel.queue_declare(queue="task_queue", durable=True, exclusive=False, auto_delete=False)
+  num_in_queue = queue.method.message_count
+  if(num_in_queue > 2 * currentNbr):
+    return num_in_queue + 1
+  if(num_in_queuq < currentNbr/2):
+    return num_in_queue - 1
 
+def getQueuedSize():
+  pika_conn_params = pika.ConnectionParameters(host='waspmq', port=5672,credentials=pika.credentials.PlainCredentials('test', 'test'),)
+  connection = pika.BlockingConnection(pika_conn_params)
+  channel = connection.channel()
+  queue = channel.queue_declare(queue="task_queue", durable=True, exclusive=False, auto_delete=False)
+  return queue.method.message_count
+
+def logarr(arr, indent=""):
+	for n in arr:
+		log2("{}{}".format(indent, n))
 
 def runLeader(keyval, openstack, prefix, period):
 	''' Main function of the control leader '''
@@ -196,8 +215,6 @@ def runLeader(keyval, openstack, prefix, period):
 	workerNames=[ x['name'] for x in workerNodes ]
 	allNodes = ctrlNames+entryNames+workerNames
 
-
-
 	for vm in [ vm for vm in vms if vm not in allNodes ]:
 		log("Shutting down unregistered VM " + vm)
 		openstack.terminateVM(vm)
@@ -207,15 +224,36 @@ def runLeader(keyval, openstack, prefix, period):
 			keyval.removeStarting(name)
 			startingNodes.remove(name)
 
-	log("Control nodes: {}".format(','.join(ctrlNames)))
-	log("Entry nodes: {}".format(','.join(entryNames)))
-	log("Worker nodes: {}".format(','.join(workerNames)))
-	log("Starting nodes: {}".format(','.join(startingNodes)))
+	log2("Control nodes:")
+	logarr(ctrlNames, indent="  ")
+	log2("Entry nodes:")
+	logarr(entryNames, indent="  ")
+	log2("Worker nodes:")
+	logarr(workerNames, indent="  ")
+	log2("Starting nodes:")
+	logarr(startingNodes, indent="  ")
 
+	try:
+		numWorkers = len(workerNames)
+		queued = float(getQueuedSize())
+		ratio = queued/numWorkers
+		log2("Job queue size: {}, ratio: {}".format(queued, ratio))
+		if ratio > 1:
+			keyval.putConfig("worker_num_nodes", min(8, numWorkers+1))
+		
+	except Exception as e:
+		exc_type, exc_value, exc_traceback = sys.exc_info()
+		logexception(exc_type, exc_value, exc_traceback)
 
 	handleNodeCount(keyval, openstack, prefix, period, 'ctrl', ctrlNames, SMALL)
 	handleNodeCount(keyval, openstack, prefix, period, 'entry', entryNames, LARGE)
-	handleNodeCount(keyval, openstack, prefix, period, 'worker', workerNames, MEDIUM)
+	workerStarting= False
+	for worker in wokerNames:
+		if worker in startingNodes:
+			workerStarting= True
+	if not workerStarting:
+		handleNodeCount(keyval, openstack, prefix, period, 'worker', workerNames, MEDIUM)
+
 	handleStartups(keyval, openstack, prefix, period, ctrlNames, entryNames, workerNames)
 	killBadNodes(keyval, openstack, prefix, ctrlNames+entryNames+workerNames)
 

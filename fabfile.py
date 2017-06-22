@@ -73,6 +73,7 @@ def clear_etcd_data():
 def start_controller(prefix, etcdhost=None, foreground=None):
 	# Copy openstack configuration
 	put('config.properties', '.')
+	writeHosts('127.0.0.1')
 	# Setup SSH
 	put('ctapp.pem', '.')
 	# Run application
@@ -84,11 +85,15 @@ def start_controller(prefix, etcdhost=None, foreground=None):
 		else:
 			run('ctcontrol {}'.format(prefix))
 
+# Write common information to /etc/hosts
+def writeHosts(etcdhost):
+	sudo('echo 10.0.0.9 waspmq >> /etc/hosts')
+	sudo('echo {} etcdhost >> /etc/hosts'.format(etcdhost))
+
 # Start an entry node
 def start_entry(etcdhost, foreground=None):
 	put('config.properties', '.')
-	sudo('echo 10.0.0.9 waspmq >> /etc/hosts')
-	sudo('echo {} etcdhost >> /etc/hosts'.format(etcdhost))
+	writeHosts(etcdhost)
 	# Run application
 	if foreground is None:
 		run('nohup ctentry {} &>/dev/null &'.format(etcdhost), pty=False)
@@ -98,8 +103,7 @@ def start_entry(etcdhost, foreground=None):
 # Start a worker node
 def start_worker(etcdhost, foreground=None):
 	put('config.properties', '.')
-	sudo('echo 10.0.0.9 waspmq >> /etc/hosts')
-	sudo('echo {} etcdhost >> /etc/hosts'.format(etcdhost))
+	writeHosts(etcdhost)
 	# Run application
 	if foreground is None:
 		run('nohup ctworker {} &>/dev/null &'.format(etcdhost), pty=False)

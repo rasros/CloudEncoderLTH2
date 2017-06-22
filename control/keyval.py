@@ -79,5 +79,5 @@ class KeyValueStore:
 		self.etcd.delete('/control/machines/'+app+'/'+name)
 
 	### Log to the key value store
-	def log(self, name, s):
-		self.append("/log/", "[{:15s}] {}".format(name[:15], s))
+	def log(self, name, s, logpath="/log/"):
+		self.append(logpath, "[{:15s}] {}".format(name[:15], s))
