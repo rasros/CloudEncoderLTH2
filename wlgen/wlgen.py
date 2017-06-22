@@ -131,5 +131,5 @@ if __name__ == '__main__':
         t.start()
 
     while not info.exiting:
-
+        info.printInfo()
         time.sleep(1)
