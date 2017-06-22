@@ -10,7 +10,7 @@ import sys
 import signal
 import Queue
 
-NUM_THREADS = 10
+NUM_THREADS = 2
 MEAN_SLEEP_SEC = 5
 
 class ThreadInfo:
@@ -59,7 +59,7 @@ class ThreadInfo:
 
     def printStats(self):
         info.mutex.acquire()
-        sys.stderr.write(str(t.time()) + "," +
+        sys.stderr.write(str(int(time.time())) + "," +
                 str(self.submittedJobs - self.completedJobs) + "," +
                 str(self.completedJobs) + "\n")
         info.mutex.release()
@@ -127,22 +127,22 @@ def genWL1(base, tidx, info):
         r2 = requests.get(file_url + "/status")
 
     t = time.time()
-    info.mutex.acquire()
-    sys.stderr.write(file_url + "," +
-            str(startTime-queueTime) + "," +
-            str(t-startTime) + "," +
-            str(t-queueTime) + "\n")
-    info.mutex.release()
+    #info.mutex.acquire()
+    #sys.stderr.write(file_url + "," +
+            #str(startTime-queueTime) + "," +
+            #str(t-startTime) + "," +
+            #str(t-queueTime) + "\n")
+    #info.mutex.release()
     info.incCount(tidx)
 
 
 if __name__ == '__main__':
-    #print("Workload Generator started with %d threads and %d mean sleep time." \
-            #% (NUM_THREADS, MEAN_SLEEP_SEC))
-    #print("CSV is printed to stderr and info to stdout.")
-    #print("Press CTRL+C to quit.")
+    print("Workload Generator started with %d threads and %d mean sleep time." \
+            % (NUM_THREADS, MEAN_SLEEP_SEC))
+    print("CSV is printed to stderr and info to stdout.")
+    print("Press CTRL+C to quit.")
 
-    sys.stderr.write("Time,#InQueue,#Completed")
+    sys.stderr.write("Time,#InQueue,#Completed\n")
 
     signal.signal(signal.SIGINT, info.pleaseDie)
 
@@ -153,4 +153,5 @@ if __name__ == '__main__':
 
     while not info.exiting:
         info.printInfo()
+        info.printStats()
         info.sleep(1)
