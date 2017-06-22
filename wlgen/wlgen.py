@@ -39,10 +39,22 @@ class ThreadInfo:
         return status
 
     def pleaseDie(self):
+        print("Please die")
         self.mutex.acquire()
         self.exiting = True
         self.status = [ "CLOSING" for i in range(self.numthreads) ]
         self.mutex.release()
+        self.printInfo()
+
+    def printInfo(self):
+        info.mutex.acquire()
+        str = ""
+        for i in range(NUM_THREADS):
+            str += "\033[95mThread {} {:15s} Done: {:3d}\033[0m\n".format(
+                    i, info.status[i], info.count[1])
+            str += "\033[{}F".format(NUM_THREADS+1)
+        print(str)
+        info.mutex.release()
 
 
 info = ThreadInfo(NUM_THREADS)
@@ -74,16 +86,23 @@ def genWL1(base, tidx, info):
     
     info.setStatus(tidx, r2.json()["status"])
     while ( info.setStatus(tidx, r2.json()["status"]) == "QUEUED" ):
-        time.sleep(1)
+        try:
+            time.sleep(1)
+        except Exception:
+            pass
         if info.exiting:
             return
+        r2 = requests.get(file_url + "/status")
 
     startTime = time.time()
     while ( info.setStatus(tidx, r2.json()["status"]) != "DONE" ):
-        time.sleep(1)
-        r2 = requests.get(file_url + "/status")
+        try:
+            time.sleep(1)
+        except Exception:
+            pass
         if info.exiting:
             return
+        r2 = requests.get(file_url + "/status")
 
     t = time.time()
     info.mutex.acquire()
@@ -112,12 +131,5 @@ if __name__ == '__main__':
         t.start()
 
     while not info.exiting:
-        info.mutex.acquire()
-        str = ""
-        for i in range(NUM_THREADS):
-            str += "\033[95mThread {} {:15s} Done: {:3d}\033[0m\n".format(
-                    i, info.status[i], info.count[1])
-            str += "\033[{}F".format(NUM_THREADS+1)
-        print(str)
-        info.mutex.release()
+
         time.sleep(1)
