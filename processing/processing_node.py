@@ -26,7 +26,7 @@ class ProcessingNode:
         self.task_channel.basic_consume(self.process, queue='task_queue')
 
     def start_consuming(self):
-        self.log(' [*] Waiting for files to convert. To exit press CTRL+C')
+        self.log('Waiting for files to convert')
         self.task_channel.start_consuming()
 
     def log(self, s):
@@ -44,7 +44,7 @@ class ProcessingNode:
 
     # process is called when task is received
     def process(self, ch, method, properties, body):
-        self.log(" [x] Received file to convert: %r" % body)
+        self.log("Received file to convert: %r" % body)
         uuid = body
 
         #initializing status queue
@@ -71,13 +71,13 @@ class ProcessingNode:
             with open(uuid + '/in.mp4', 'w') as file:
                 file.write(obj_tuple[1])
         except swiftclient.exceptions.ClientException:
-            self.log(" [x] Transcoding aborted, failed to fetch file for %r" % uuid)
+            self.log("Transcoding aborted, failed to fetch file for %r" % uuid)
             traceback.print_exc()
             self.progress(uuid, -1)
             ch.basic_ack(delivery_tag = method.delivery_tag)
             return
         
-        self.log(" [x] Downloaded file, starting transcoding")
+        self.log("Downloaded file, starting transcoding")
 
         transcode.do(uuid, self.progress)
 
@@ -86,21 +86,18 @@ class ProcessingNode:
             with open(uuid + '/out.mp4', 'r') as file:
                 swift.put_object(uuid, 'out.mp4', contents=file.read(), content_type='video/mp4')
         except swiftclient.exceptions.ClientException:
-            self.log(" [x] Transcoding aborted, failed to upload file for %r" % uuid)
+            self.log("Transcoding aborted, failed to upload file for %r" % uuid)
             traceback.print_exc()
             self.progress(uuid, -1)
             ch.basic_ack(delivery_tag = method.delivery_tag)
             return
  
         ch.basic_ack(delivery_tag = method.delivery_tag) 
-        self.log(" [x] Transcoding done for %r." % uuid)
-
-        self.log(" [x] Deleting input.")
         swift.delete_object(uuid, 'in.mp4')
         swift.close()
         self.progress(uuid, 100)
-
         self.status_channel.close()
+        self.log("Transcoding done for %r." % uuid)
 
 def main():
 	notifyThread = NotifyThread(host='etcdhost')

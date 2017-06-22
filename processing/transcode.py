@@ -12,7 +12,7 @@ def do(uuid,callback):
     progress = 1
     noprogress = 0
     preprog = -1
-    print(" [x] Starting transcoding of UUID %r" % uuid)
+    print("Starting transcoding of UUID %r" % uuid)
     while progress < 99 and noprogress < 60:
         time.sleep(1)
         try:
@@ -27,7 +27,7 @@ def do(uuid,callback):
                 if progress != preprog:
                     callback(uuid,progress)
                     preprog = progress
-                print(' [x] Converted %d%%.' % progress)
+                print('Converted %d%%.' % progress)
                 noprogress = 0
             else:
                 noprogress = noprogress+1
